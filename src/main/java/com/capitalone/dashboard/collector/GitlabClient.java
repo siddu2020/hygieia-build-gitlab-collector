@@ -2,7 +2,7 @@ package com.capitalone.dashboard.collector;
 
 import com.capitalone.dashboard.model.BaseModel;
 import com.capitalone.dashboard.model.Build;
-import com.capitalone.dashboard.model.HudsonJob;
+import com.capitalone.dashboard.model.GitlabProject;
 
 import java.util.Map;
 import java.util.Set;
@@ -10,7 +10,7 @@ import java.util.Set;
 /**
  * Client for fetching job and build information from Hudson
  */
-public interface HudsonClient {
+public interface GitlabClient {
 
     enum jobData {BUILD, CONFIG};
 
@@ -22,7 +22,7 @@ public interface HudsonClient {
      * @param instanceUrl the URL for the Hudson instance
      * @return a summary of every build for each job on the instance
      */
-    Map<HudsonJob, Map<HudsonClient.jobData, Set<BaseModel>>> getInstanceJobs(String instanceUrl);
+    Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> getInstanceProjects(String instanceUrl);
 
     /**
      * Fetch full populated build information for a build.
@@ -31,5 +31,5 @@ public interface HudsonClient {
      * @param instanceUrl
      * @return a Build instance or null
      */
-    Build getBuildDetails(String buildUrl, String instanceUrl);
+    Build getPipelineDetails(String buildUrl, String instanceUrl);
 }

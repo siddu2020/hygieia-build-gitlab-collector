@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Extension of Collector that stores current build server configuration.
  */
-public class HudsonCollector extends Collector {
+public class GitlabCollector extends Collector {
     private List<String> buildServers = new ArrayList<>();
     private List<String> niceNames = new ArrayList<>();
     private List<String> environments = new ArrayList<>();
@@ -27,26 +27,15 @@ public class HudsonCollector extends Collector {
         return niceNames;
     }
 
-    public void setNiceNames(List<String> niceNames) {
-        this.niceNames = niceNames;
-    }
-
     public List<String> getEnvironments() {
         return environments;
     }
 
-    public void setEnvironments(List<String> environments) {
-        this.environments = environments;
-    }
-
-    public void setBuildServers(List<String> buildServers) {
-        this.buildServers = buildServers;
-    }
-
-    public static HudsonCollector prototype(List<String> buildServers, List<String> niceNames,
+    //TODO: Remove niceNames, environments?
+    public static GitlabCollector prototype(List<String> buildServers, List<String> niceNames,
                                             List<String> environments) {
-        HudsonCollector protoType = new HudsonCollector();
-        protoType.setName("Hudson");
+        GitlabCollector protoType = new GitlabCollector();
+        protoType.setName("Gitlab-Build");
         protoType.setCollectorType(CollectorType.Build);
         protoType.setOnline(true);
         protoType.setEnabled(true);
@@ -58,13 +47,13 @@ public class HudsonCollector extends Collector {
             protoType.getEnvironments().addAll(environments);
         }
         Map<String, Object> options = new HashMap<>();
-        options.put(HudsonJob.INSTANCE_URL,"");
-        options.put(HudsonJob.JOB_URL,"");
-        options.put(HudsonJob.JOB_NAME,"");
+        options.put(GitlabProject.INSTANCE_URL,"");
+        options.put(GitlabProject.JOB_URL,"");
+        options.put(GitlabProject.JOB_NAME,"");
 
         Map<String, Object> uniqueOptions = new HashMap<>();
-        uniqueOptions.put(HudsonJob.JOB_URL,"");
-        uniqueOptions.put(HudsonJob.JOB_NAME,"");
+        uniqueOptions.put(GitlabProject.JOB_URL,"");
+        uniqueOptions.put(GitlabProject.JOB_NAME,"");
 
         protoType.setAllFields(options);
         protoType.setUniqueFields(uniqueOptions);

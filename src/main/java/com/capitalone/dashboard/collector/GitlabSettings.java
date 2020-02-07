@@ -1,6 +1,7 @@
 package com.capitalone.dashboard.collector;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -8,16 +9,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Bean to hold settings specific to the Hudson collector.
+ * Bean to hold settings specific to the Gitlab collector.
  */
 @Component
-@ConfigurationProperties(prefix = "jenkins")
-public class HudsonSettings {
+@ConfigurationProperties(prefix = "gitlab")
+public class GitlabSettings {
 
 	
     private String cron;
-    private boolean saveLog = false;
     private List<String> servers = new ArrayList<>();
+    private String projectIds = "";
     private List<String> niceNames;
     //eg. DEV, QA, PROD etc
     private List<String> environments = new ArrayList<>();
@@ -28,26 +29,16 @@ public class HudsonSettings {
     @Value("${folderDepth:10}")
     private int folderDepth;
 
-    @Value("${jenkins.connectTimeout:20000}")
+    @Value("${gitlab.connectTimeout:20000}")
     private int connectTimeout;
 
-    @Value("${jenkins.readTimeout:20000}")
+    @Value("${gitlab.readTimeout:20000}")
     private int readTimeout;
+
+    private boolean considerOnlyMasterBuilds = true;
 
     public String getCron() {
         return cron;
-    }
-
-    public void setCron(String cron) {
-        this.cron = cron;
-    }
-
-    public boolean isSaveLog() {
-        return saveLog;
-    }
-
-    public void setSaveLog(boolean saveLog) {
-        this.saveLog = saveLog;
     }
 
     public List<String> getServers() {
@@ -73,29 +64,17 @@ public class HudsonSettings {
     public void setApiKeys(List<String> apiKeys) {
         this.apiKeys = apiKeys;
     }
-    
-    public void setDockerLocalHostIP(String dockerLocalHostIP) {
-        this.dockerLocalHostIP = dockerLocalHostIP;
-    }
 
     public List<String> getNiceNames() {
         return niceNames;
-    }
-
-    public void setNiceNames(List<String> niceNames) {
-        this.niceNames = niceNames;
     }
 
     public List<String> getEnvironments() {
         return environments;
     }
 
-    public void setEnvironments(List<String> environments) {
-        this.environments = environments;
-    }
-
     //Docker NATs the real host localhost to 10.0.2.2 when running in docker
-	//as localhost is stored in the JSON payload from jenkins we need
+	//as localhost is stored in the JSON payload from gitlab we need
 	//this hack to fix the addresses
     public String getDockerLocalHostIP() {
     	
@@ -115,19 +94,31 @@ public class HudsonSettings {
 		return pageSize;
 	}
 
-    public void setFolderDepth(int folderDepth) {
-        this.folderDepth = folderDepth;
-    }
-
     public int getFolderDepth() {
         return folderDepth;
     }
 
     public int getConnectTimeout() { return connectTimeout; }
 
-    public void setConnectTimeout(int connectTimeout) { this.connectTimeout = connectTimeout; }
-
     public int getReadTimeout() { return readTimeout; }
 
-    public void setReadTimeout(int readTimeout) { this.readTimeout = readTimeout; }
+    public List<String> getProjectIds() {
+        return Arrays.asList(projectIds.split(","));
+    }
+
+    public void setProjectIds(String projectIds) {
+        this.projectIds = projectIds;
+    }
+
+    public void setCron(String cron) {
+        this.cron = cron;
+    }
+
+    public boolean isConsiderOnlyMasterBuilds() {
+        return considerOnlyMasterBuilds;
+    }
+
+    public void setConsiderOnlyMasterBuilds(boolean considerOnlyMasterBuilds) {
+        this.considerOnlyMasterBuilds = considerOnlyMasterBuilds;
+    }
 }

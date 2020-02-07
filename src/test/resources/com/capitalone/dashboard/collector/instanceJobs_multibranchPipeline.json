@@ -1,7 +1,7 @@
 {
   "jobs": [
     {
-      "_class":"org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject",
+      "_class":"org.gitlabci.plugins.workflow.multibranch.WorkflowMultiBranchProject",
       "name": "job1",
       "url": "http://server/job/job1/",
       "builds": [

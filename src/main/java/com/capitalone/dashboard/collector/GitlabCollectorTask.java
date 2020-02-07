@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import com.capitalone.dashboard.model.*;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.TaskScheduler;
@@ -18,21 +21,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestClientException;
 
-import com.capitalone.dashboard.model.BaseModel;
-import com.capitalone.dashboard.model.Build;
-import com.capitalone.dashboard.model.CollectorItem;
-import com.capitalone.dashboard.model.CollectorItemConfigHistory;
-import com.capitalone.dashboard.model.CollectorType;
-import com.capitalone.dashboard.model.Configuration;
-import com.capitalone.dashboard.model.HudsonCollector;
-import com.capitalone.dashboard.model.HudsonJob;
+import com.capitalone.dashboard.model.GitlabCollector;
 import com.capitalone.dashboard.repository.BaseCollectorRepository;
 import com.capitalone.dashboard.repository.BuildRepository;
 import com.capitalone.dashboard.repository.CollItemConfigHistoryRepository;
 import com.capitalone.dashboard.repository.ComponentRepository;
 import com.capitalone.dashboard.repository.ConfigurationRepository;
-import com.capitalone.dashboard.repository.HudsonCollectorRepository;
-import com.capitalone.dashboard.repository.HudsonJobRepository;
+import com.capitalone.dashboard.repository.GitlabCollectorRepository;
+import com.capitalone.dashboard.repository.GitlabJobRepository;
 import com.google.common.collect.Lists;
 
 
@@ -40,77 +36,77 @@ import com.google.common.collect.Lists;
  * CollectorTask that fetches Build information from Hudson
  */
 @Component
-public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
+public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
     @SuppressWarnings("PMD.UnusedPrivateField")
-//    private static final Log LOG = LogFactory.getLog(HudsonCollectorTask.class);
+    private static final Log LOG = LogFactory.getLog(GitlabCollectorTask.class);
 
-    private final HudsonCollectorRepository hudsonCollectorRepository;
-    private final HudsonJobRepository hudsonJobRepository;
+    private final GitlabCollectorRepository gitlabCollectorRepository;
+    private final GitlabJobRepository gitlabJobRepository;
     private final BuildRepository buildRepository;
     private final CollItemConfigHistoryRepository configRepository;
-    private final HudsonClient hudsonClient;
-    private final HudsonSettings hudsonSettings;
+    private final GitlabClient gitlabClient;
+    private final GitlabSettings gitlabSettings;
     private final ComponentRepository dbComponentRepository;
 	private final ConfigurationRepository configurationRepository;
 
     @Autowired
-    public HudsonCollectorTask(TaskScheduler taskScheduler,
-                               HudsonCollectorRepository hudsonCollectorRepository,
-                               HudsonJobRepository hudsonJobRepository,
-                               BuildRepository buildRepository, CollItemConfigHistoryRepository configRepository, HudsonClient hudsonClient,
-                               HudsonSettings hudsonSettings,
-                               ComponentRepository dbComponentRepository, 
+    public GitlabCollectorTask(TaskScheduler taskScheduler,
+                               GitlabCollectorRepository gitlabCollectorRepository,
+                               GitlabJobRepository gitlabJobRepository,
+                               BuildRepository buildRepository, CollItemConfigHistoryRepository configRepository, GitlabClient gitlabClient,
+                               GitlabSettings gitlabSettings,
+                               ComponentRepository dbComponentRepository,
                                ConfigurationRepository configurationRepository) {
-        super(taskScheduler, "Hudson");
-        this.hudsonCollectorRepository = hudsonCollectorRepository;
-        this.hudsonJobRepository = hudsonJobRepository;
+        super(taskScheduler, "Gitlab-Build");
+        this.gitlabCollectorRepository = gitlabCollectorRepository;
+        this.gitlabJobRepository = gitlabJobRepository;
         this.buildRepository = buildRepository;
         this.configRepository = configRepository;
-        this.hudsonClient = hudsonClient;
-        this.hudsonSettings = hudsonSettings;
+        this.gitlabClient = gitlabClient;
+        this.gitlabSettings = gitlabSettings;
         this.dbComponentRepository = dbComponentRepository;
 		this.configurationRepository = configurationRepository;
     }
 
     @Override
-    public HudsonCollector getCollector() {
-    	Configuration config = configurationRepository.findByCollectorName("Hudson");
-        // Only use Admin Page Jenkins server configuration when available
-        // otherwise use properties file Jenkins server configuration
+    public GitlabCollector getCollector() {
+    	Configuration config = configurationRepository.findByCollectorName("Gitlab-Build");
+        // Only use Admin Page Gitlab server configuration when available
+        // otherwise use properties file Gitlab server configuration
         if (config != null ) {
 			config.decryptOrEncrptInfo();
 			// To clear the username and password from existing run and
 			// pick the latest
-            hudsonSettings.getUsernames().clear();
-            hudsonSettings.getServers().clear();
-            hudsonSettings.getApiKeys().clear();
-			for (Map<String, String> jenkinsServer : config.getInfo()) {
-				hudsonSettings.getServers().add(jenkinsServer.get("url"));
-				hudsonSettings.getUsernames().add(jenkinsServer.get("userName"));
-				hudsonSettings.getApiKeys().add(jenkinsServer.get("password"));
+            gitlabSettings.getUsernames().clear();
+            gitlabSettings.getServers().clear();
+            gitlabSettings.getApiKeys().clear();
+			for (Map<String, String> gitlabServer : config.getInfo()) {
+				gitlabSettings.getServers().add(gitlabServer.get("url"));
+				gitlabSettings.getUsernames().add(gitlabServer.get("userName"));
+				gitlabSettings.getApiKeys().add(gitlabServer.get("password"));
 			}
 		}
-        return HudsonCollector.prototype(hudsonSettings.getServers(), hudsonSettings.getNiceNames(),
-                hudsonSettings.getEnvironments());
+        return GitlabCollector.prototype(gitlabSettings.getServers(), gitlabSettings.getNiceNames(),
+                gitlabSettings.getEnvironments());
     }
 
     @Override
-    public BaseCollectorRepository<HudsonCollector> getCollectorRepository() {
-        return hudsonCollectorRepository;
+    public BaseCollectorRepository<GitlabCollector> getCollectorRepository() {
+        return gitlabCollectorRepository;
     }
 
     @Override
     public String getCron() {
-        return hudsonSettings.getCron();
+        return gitlabSettings.getCron();
     }
 
     @Override
-    public void collect(HudsonCollector collector) {
+    public void collect(GitlabCollector collector) {
         long start = System.currentTimeMillis();
         Set<ObjectId> udId = new HashSet<>();
         udId.add(collector.getId());
-        List<HudsonJob> existingJobs = hudsonJobRepository.findByCollectorIdIn(udId);
-        List<HudsonJob> activeJobs = new ArrayList<>();
+        List<GitlabProject> existingJobs = gitlabJobRepository.findByCollectorIdIn(udId);
+        List<GitlabProject> activeJobs = new ArrayList<>();
         List<String> activeServers = new ArrayList<>();
         activeServers.addAll(collector.getBuildServers());
 
@@ -119,8 +115,8 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
         for (String instanceUrl : collector.getBuildServers()) {
             logBanner(instanceUrl);
             try {
-                Map<HudsonJob, Map<HudsonClient.jobData, Set<BaseModel>>> dataByJob = hudsonClient
-                        .getInstanceJobs(instanceUrl);
+                Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> dataByJob = gitlabClient
+                        .getInstanceProjects(instanceUrl);
                 log("Fetched jobs", start);
                 activeJobs.addAll(dataByJob.keySet());
                 addNewJobs(dataByJob.keySet(), existingJobs, collector);
@@ -138,13 +134,13 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
     }
 
     /**
-     * Clean up unused hudson/jenkins collector items
+     * Clean up unused collector items
      *
-     * @param collector    the {@link HudsonCollector}
+     * @param collector    the {@link GitlabCollector}
      * @param existingJobs
      */
 
-    private void clean(HudsonCollector collector, List<HudsonJob> existingJobs) {
+    private void clean(GitlabCollector collector, List<GitlabProject> existingJobs) {
         Set<ObjectId> uniqueIDs = new HashSet<>();
         for (com.capitalone.dashboard.model.Component comp : dbComponentRepository
                 .findAll()) {
@@ -161,8 +157,8 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
                 }
             }
         }
-        List<HudsonJob> stateChangeJobList = new ArrayList<>();
-        for (HudsonJob job : existingJobs) {
+        List<GitlabProject> stateChangeJobList = new ArrayList<>();
+        for (GitlabProject job : existingJobs) {
             if ((job.isEnabled() && !uniqueIDs.contains(job.getId())) ||  // if it was enabled but not on a dashboard
                     (!job.isEnabled() && uniqueIDs.contains(job.getId()))) { // OR it was disabled and now on a dashboard
                 job.setEnabled(uniqueIDs.contains(job.getId()));
@@ -170,7 +166,7 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
             }
         }
         if (!CollectionUtils.isEmpty(stateChangeJobList)) {
-            hudsonJobRepository.save(stateChangeJobList);
+            gitlabJobRepository.save(stateChangeJobList);
         }
     }
 
@@ -182,10 +178,10 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
      * @param activeServers
      * @param collector
      */
-    private void deleteUnwantedJobs(List<HudsonJob> activeJobs, List<HudsonJob> existingJobs, List<String> activeServers, HudsonCollector collector) {
+    private void deleteUnwantedJobs(List<GitlabProject> activeJobs, List<GitlabProject> existingJobs, List<String> activeServers, GitlabCollector collector) {
 
-        List<HudsonJob> deleteJobList = new ArrayList<>();
-        for (HudsonJob job : existingJobs) {
+        List<GitlabProject> deleteJobList = new ArrayList<>();
+        for (GitlabProject job : existingJobs) {
             if (job.isPushed()) continue; // build servers that push jobs will not be in active servers list by design
 
             // if we have a collector item for the job in repository but it's build server is not what we collect, remove it.
@@ -205,65 +201,78 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
 
         }
         if (!CollectionUtils.isEmpty(deleteJobList)) {
-            hudsonJobRepository.delete(deleteJobList);
+            gitlabJobRepository.delete(deleteJobList);
         }
     }
 
     /**
      * Iterates over the enabled build jobs and adds new builds to the database.
      *
-     * @param enabledJobs list of enabled {@link HudsonJob}s
-     * @param dataByJob maps a {@link HudsonJob} to a map of data with {@link Build}s.
+     * @param enabledJobs list of enabled {@link GitlabProject}s
+     * @param dataByJob maps a {@link GitlabProject} to a map of data with {@link Build}s.
      */
-    private void addNewBuilds(List<HudsonJob> enabledJobs,
-                              Map<HudsonJob, Map<HudsonClient.jobData, Set<BaseModel>>> dataByJob) {
+    private void addNewBuilds(List<GitlabProject> enabledJobs,
+                              Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> dataByJob) {
         long start = System.currentTimeMillis();
         int count = 0;
 
-        for (HudsonJob job : enabledJobs) {
+        for (GitlabProject job : enabledJobs) {
             if (job.isPushed()) continue;
             // process new builds in the order of their build numbers - this has implication to handling of commits in BuildEventListener
 
-            Map<HudsonClient.jobData, Set<BaseModel>> jobDataSetMap = dataByJob.get(job);
+            Map<GitlabClient.jobData, Set<BaseModel>> jobDataSetMap = dataByJob.get(job);
             if (jobDataSetMap == null) {
                 continue;
             }
-            Set<BaseModel> buildsSet = jobDataSetMap.get(HudsonClient.jobData.BUILD);
+            Set<BaseModel> buildsSet = jobDataSetMap.get(GitlabClient.jobData.BUILD);
 
             ArrayList<BaseModel> builds = Lists.newArrayList(nullSafe(buildsSet));
 
             builds.sort(Comparator.comparingInt(b -> Integer.valueOf(((Build) b).getNumber())));
+            int counter = 1;
+            int totalBuilds = builds.size();
             for (BaseModel buildSummary : builds) {
-                if (isNewBuild(job, (Build)buildSummary)) {
-                    Build build = hudsonClient.getBuildDetails(((Build)buildSummary)
+                Build bSummary = (Build) buildSummary;
+                BuildStatus buildStatus = bSummary.getBuildStatus();
+                if (buildStatus != null && !buildStatus.equals(BuildStatus.Success)) {
+                    LOG.info(String.format("Skipping details for build %d (with status %s) of total %d builds",
+                            counter++, buildStatus, totalBuilds));
+                    continue;
+                }
+                if (isNewBuild(job, bSummary)) {
+                    LOG.info(String.format("Getting details for new build %d (Number: %s) of total %d builds",
+                            counter++, bSummary.getNumber(), totalBuilds));
+                    Build build = gitlabClient.getPipelineDetails((bSummary)
                             .getBuildUrl(), job.getInstanceUrl());
                     job.setLastUpdated(System.currentTimeMillis());
-                    hudsonJobRepository.save(job);
+                    gitlabJobRepository.save(job);
                     if (build != null) {
                         build.setCollectorItemId(job.getId());
                         buildRepository.save(build);
                         count++;
                     }
+                } else {
+                    LOG.info(String.format("Skipping details for existing build %d of total %d builds", counter++, totalBuilds));
                 }
             }
         }
         log("New builds", start, count);
     }
 
-    private void addNewConfigs(List<HudsonJob> enabledJobs,
-                              Map<HudsonJob, Map<HudsonClient.jobData, Set<BaseModel>>> dataByJob) {
+    private void addNewConfigs(List<GitlabProject> enabledJobs,
+                              Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> dataByJob) {
         long start = System.currentTimeMillis();
         int count = 0;
 
-        for (HudsonJob job : enabledJobs) {
+        for (GitlabProject job : enabledJobs) {
             if (job.isPushed()) continue;
             // process new builds in the order of their build numbers - this has implication to handling of commits in BuildEventListener
 
-            Map<HudsonClient.jobData, Set<BaseModel>> jobDataSetMap = dataByJob.get(job);
+            Map<GitlabClient.jobData, Set<BaseModel>> jobDataSetMap = dataByJob.get(job);
             if (jobDataSetMap == null) {
                 continue;
             }
-            Set<BaseModel> configsSet = jobDataSetMap.get(HudsonClient.jobData.CONFIG);
+            Set<BaseModel> configsSet = jobDataSetMap.get(GitlabClient.jobData.CONFIG);
 
             ArrayList<BaseModel> configs = Lists.newArrayList(nullSafe(configsSet));
 
@@ -272,7 +281,7 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
             for (BaseModel config : configs) {
                 if (config != null && isNewConfig(job, (CollectorItemConfigHistory)config)) {
                     job.setLastUpdated(System.currentTimeMillis());
-                    hudsonJobRepository.save(job);
+                    gitlabJobRepository.save(job);
                     ((CollectorItemConfigHistory)config).setCollectorItemId(job.getId());
                     configRepository.save((CollectorItemConfigHistory)config);
                     count++;
@@ -287,23 +296,22 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
     }
 
     /**
-     * Adds new {@link HudsonJob}s to the database as disabled jobs.
+     * Adds new {@link GitlabProject}s to the database as disabled jobs.
      *
-     * @param jobs         list of {@link HudsonJob}s
+     * @param jobs         list of {@link GitlabProject}s
      * @param existingJobs
-     * @param collector    the {@link HudsonCollector}
+     * @param collector    the {@link GitlabCollector}
      */
-    private void addNewJobs(Set<HudsonJob> jobs, List<HudsonJob> existingJobs, HudsonCollector collector) {
+    private void addNewJobs(Set<GitlabProject> jobs, List<GitlabProject> existingJobs, GitlabCollector collector) {
         long start = System.currentTimeMillis();
         int count = 0;
 
-        List<HudsonJob> newJobs = new ArrayList<>();
-        for (HudsonJob job : jobs) {
-            HudsonJob existing = null;
+        List<GitlabProject> newJobs = new ArrayList<>();
+        for (GitlabProject job : jobs) {
+            GitlabProject existing = null;
             if (!CollectionUtils.isEmpty(existingJobs) && (existingJobs.contains(job))) {
                 existing = existingJobs.get(existingJobs.indexOf(job));
             }
-
             String niceName = getNiceName(job, collector);
             String environment = getEnvironment(job, collector);
             if (existing == null) {
@@ -321,26 +329,26 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
             } else {
                 if (StringUtils.isEmpty(existing.getNiceName()) && StringUtils.isNotEmpty(niceName)) {
                     existing.setNiceName(niceName);
-                    hudsonJobRepository.save(existing);
+                    gitlabJobRepository.save(existing);
                 }
                 if (StringUtils.isEmpty(existing.getEnvironment()) && StringUtils.isNotEmpty(environment)) {
                     existing.setEnvironment(environment);
-                    hudsonJobRepository.save(existing);
+                    gitlabJobRepository.save(existing);
                 }
                 if (StringUtils.isEmpty(existing.getInstanceUrl())) {
                     existing.setInstanceUrl(job.getInstanceUrl());
-                    hudsonJobRepository.save(existing);
+                    gitlabJobRepository.save(existing);
                 }
             }
         }
         //save all in one shot
         if (!CollectionUtils.isEmpty(newJobs)) {
-            hudsonJobRepository.save(newJobs);
+            gitlabJobRepository.save(newJobs);
         }
         log("New jobs", start, count);
     }
 
-    private String getNiceName(HudsonJob job, HudsonCollector collector) {
+    private String getNiceName(GitlabProject job, GitlabCollector collector) {
         if (CollectionUtils.isEmpty(collector.getBuildServers())) return "";
         List<String> servers = collector.getBuildServers();
         List<String> niceNames = collector.getNiceNames();
@@ -353,7 +361,7 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
         return "";
     }
 
-    private String getEnvironment(HudsonJob job, HudsonCollector collector) {
+    private String getEnvironment(GitlabProject job, GitlabCollector collector) {
         if (CollectionUtils.isEmpty(collector.getBuildServers())) return "";
         List<String> servers = collector.getBuildServers();
         List<String> environments = collector.getEnvironments();
@@ -366,24 +374,24 @@ public class HudsonCollectorTask extends CollectorTask<HudsonCollector> {
         return "";
     }
 
-    private List<HudsonJob> enabledJobs(HudsonCollector collector,
-                                        String instanceUrl) {
-        return hudsonJobRepository.findEnabledJobs(collector.getId(),
+    private List<GitlabProject> enabledJobs(GitlabCollector collector,
+                                            String instanceUrl) {
+        return gitlabJobRepository.findEnabledJobs(collector.getId(),
                 instanceUrl);
     }
 
     @SuppressWarnings("unused")
-    private HudsonJob getExistingJob(HudsonCollector collector, HudsonJob job) {
-        return hudsonJobRepository.findJob(collector.getId(),
+    private GitlabProject getExistingJob(GitlabCollector collector, GitlabProject job) {
+        return gitlabJobRepository.findJob(collector.getId(),
                 job.getInstanceUrl(), job.getJobName());
     }
 
-    private boolean isNewBuild(HudsonJob job, Build build) {
+    private boolean isNewBuild(GitlabProject job, Build build) {
         return buildRepository.findByCollectorItemIdAndNumber(job.getId(),
                 build.getNumber()) == null;
     }
 
-    private boolean isNewConfig(HudsonJob job, CollectorItemConfigHistory config) {
+    private boolean isNewConfig(GitlabProject job, CollectorItemConfigHistory config) {
         return configRepository.findByCollectorItemIdAndTimestamp(job.getId(),config.getTimestamp()) == null;
     }
 }

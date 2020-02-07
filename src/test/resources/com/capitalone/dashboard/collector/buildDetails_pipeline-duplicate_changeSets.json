@@ -1,5 +1,5 @@
 {
-  "_class" : "org.jenkinsci.plugins.workflow.job.WorkflowRun",
+  "_class" : "org.gitlabci.plugins.workflow.job.WorkflowRun",
   "building": false,
   "duration": 2698495,
   "number": 2483,
