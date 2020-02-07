@@ -77,12 +77,10 @@ public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
 			config.decryptOrEncrptInfo();
 			// To clear the username and password from existing run and
 			// pick the latest
-            gitlabSettings.getUsernames().clear();
             gitlabSettings.getServers().clear();
             gitlabSettings.getApiKeys().clear();
 			for (Map<String, String> gitlabServer : config.getInfo()) {
 				gitlabSettings.getServers().add(gitlabServer.get("url"));
-				gitlabSettings.getUsernames().add(gitlabServer.get("userName"));
 				gitlabSettings.getApiKeys().add(gitlabServer.get("password"));
 			}
 		}

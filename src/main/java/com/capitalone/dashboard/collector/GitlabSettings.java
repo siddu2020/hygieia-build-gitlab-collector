@@ -48,15 +48,7 @@ public class GitlabSettings {
     public void setServers(List<String> servers) {
         this.servers = servers;
     }
-    
-    public List<String> getUsernames() {
-        return usernames;
-    }
 
-    public void setUsernames(List<String> usernames) {
-        this.usernames = usernames;
-    }
-    
     public List<String> getApiKeys() {
         return apiKeys;
     }

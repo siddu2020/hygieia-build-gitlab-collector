@@ -62,7 +62,6 @@ gitlab.servers[0]=${GITLAB_PROTOCOL:-https}://${GITLAB_HOST:-gitlab.com}
 
 # Another option: If using same username/password Jenkins auth,
 # set username/apiKey to use HTTP Basic Auth (blank=no auth)
-gitlab.usernames[0]=${GITLAB_USERNAME}
 gitlab.apiKeys[0]=${GITLAB_API_TOKEN}
 
 #Project ids
