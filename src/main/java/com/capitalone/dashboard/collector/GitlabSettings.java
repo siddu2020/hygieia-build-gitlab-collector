@@ -116,10 +116,11 @@ public class GitlabSettings {
         this.considerOnlyMasterBuilds = considerOnlyMasterBuilds;
     }
 
-    //TODO: Create the map once
     public String getProjectKey(String projectId) {
-        return IntStream.range(0, getProjectIds().size()).boxed()
-                .collect(Collectors.toMap(i -> getProjectIds().get(i), i -> getApiKeys().get(i)))
-                .get(projectId);
+        return IntStream.range(0, getProjectIds().size())
+                .filter(index -> projectId.equals(getProjectIds().get(index)))
+                .mapToObj(index -> getApiKeys().get(index))
+                .findFirst()
+                .orElse("");
     }
 }
