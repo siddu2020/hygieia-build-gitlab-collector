@@ -29,7 +29,8 @@ public interface GitlabClient {
      *
      * @param buildUrl the url of the build
      * @param instanceUrl
+     * @param gitProjectId
      * @return a Build instance or null
      */
-    Build getPipelineDetails(String buildUrl, String instanceUrl);
+    Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId);
 }
