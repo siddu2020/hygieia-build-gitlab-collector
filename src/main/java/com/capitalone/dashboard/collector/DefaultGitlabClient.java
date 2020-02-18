@@ -75,7 +75,8 @@ public class DefaultGitlabClient implements GitlabClient {
         for (String projectId : settings.getProjectIds()) {
             try {
                 String url = joinURL(instanceUrl, new String[]{String.format("%s/%s", GITLAB_PROJECT_API_SUFFIX, projectId)});
-                ResponseEntity<String> responseEntity = makeRestCall(url);
+                final String apiKey = settings.getProjectKey(projectId);
+                ResponseEntity<String> responseEntity = makeRestCall(url, apiKey);
                 if (responseEntity == null) {
                     break;
                 }
@@ -111,8 +112,8 @@ public class DefaultGitlabClient implements GitlabClient {
 
     private Commit getCommit(String commitId, String instanceUrl, String projectId) {
         String url = joinURL(instanceUrl, new String[]{String.format("%s/%s", GITLAB_PROJECT_API_SUFFIX, projectId), "repository/commits", commitId});
-
-        ResponseEntity<GitLabCommit> response = makeCommitRestCall(url);
+        final String apiKey = settings.getProjectKey(projectId);
+        ResponseEntity<GitLabCommit> response = makeCommitRestCall(url, apiKey);
 
         GitLabCommit gitlabCommit = response.getBody();
 
@@ -155,14 +156,15 @@ public class DefaultGitlabClient implements GitlabClient {
         gitlabProject.setJobUrl(projectURL);
         gitlabProject.getOptions().put("projectId", projectId);
 
-        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url);
+        final String apiKey = settings.getProjectKey(projectId);
+        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey);
 
         jobDataMap.put(jobData.BUILD, pipelines);
 
         result.put(gitlabProject, jobDataMap);
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey) throws URISyntaxException, ParseException {
 
         String allPipelinesUrl = String.format("%s/%s", projectApiUrl, "pipelines");
         LOG.info("Fetching pipelines for project {}, page {}", projectApiUrl, pageNum);
@@ -170,7 +172,7 @@ public class DefaultGitlabClient implements GitlabClient {
         if (settings.isConsiderOnlyMasterBuilds()) {
             extraQueryParams.put("ref", Arrays.asList("master"));
         }
-        ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams);
+        ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
         String returnJSON = responseEntity.getBody();
         if (StringUtils.isEmpty(returnJSON)) {
             return Collections.emptySet();
@@ -199,11 +201,11 @@ public class DefaultGitlabClient implements GitlabClient {
 
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey) throws URISyntaxException, ParseException {
         Set<BaseModel> allPipelines = new LinkedHashSet<>();
         int nextPage = 1;
         while (true) {
-            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage);
+            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey);
             if (pipelines.isEmpty()) {
                 break;
             }
@@ -216,14 +218,15 @@ public class DefaultGitlabClient implements GitlabClient {
     @Override
     public Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId) {
         try {
-            ResponseEntity<String> result = makeRestCall(buildUrl, true);
+            final String apiKey = settings.getProjectKey(gitProjectId);
+            ResponseEntity<String> result = makeRestCall(buildUrl, true, apiKey);
             LOG.info(String.format("Getting pipeline details: %s", buildUrl));
             String resultJSON = result.getBody();
             if (StringUtils.isEmpty(resultJSON)) {
                 LOG.error("Error getting build details for. URL=" + buildUrl);
                 return null;
             }
-            PipelineJobs jobsForPipeline = getJobsForPipeline(buildUrl);
+            PipelineJobs jobsForPipeline = getJobsForPipeline(buildUrl, apiKey);
             JSONParser parser = new JSONParser();
             try {
                 JSONObject buildJson = (JSONObject) parser.parse(resultJSON);
@@ -347,10 +350,10 @@ public class DefaultGitlabClient implements GitlabClient {
         return dashboardRepository.findByApplicationComponentIdsIn(componentIds);
     }
 
-    private PipelineJobs getJobsForPipeline(String buildUrl) {
+    private PipelineJobs getJobsForPipeline(String buildUrl, String apiKey) {
         PipelineJobs pipelineJobs = new PipelineJobs();
         try {
-            ResponseEntity<String> result = makeRestCall(buildUrl + "/jobs", true);
+            ResponseEntity<String> result = makeRestCall(buildUrl + "/jobs", true, apiKey);
             String resultJSON = result.getBody();
             if (StringUtils.isEmpty(resultJSON)) {
                 LOG.error("Error getting build details for. URL=" + buildUrl);
@@ -392,25 +395,21 @@ public class DefaultGitlabClient implements GitlabClient {
         }
     }
 
-    private ResponseEntity<String> makeRestCall(String url) {
-        return makeRestCall(url, false);
+    private ResponseEntity<String> makeRestCall(String url, String apiKey) {
+        return makeRestCall(url, false, apiKey);
     }
 
-    private ResponseEntity<GitLabCommit> makeCommitRestCall(String url) {
-        String token = this.settings.getApiKeys().get(0);
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("PRIVATE-TOKEN", token);
-
+    private ResponseEntity<GitLabCommit> makeCommitRestCall(String url, String apiKey) {
         return rest.exchange(url, HttpMethod.GET,
-                new HttpEntity<>(headers), GitLabCommit.class);
+                new HttpEntity<>(createHeaders(apiKey)), GitLabCommit.class);
     }
 
     @SuppressWarnings("PMD")
-    private ResponseEntity<String> makeRestCall(String sUrl, boolean maximizePageSize) {
-        return makeRestCall(sUrl, 1, maximizePageSize ? 100: 20, new LinkedMultiValueMap<>());
+    private ResponseEntity<String> makeRestCall(String sUrl, boolean maximizePageSize, String apiKey) {
+        return makeRestCall(sUrl, 1, maximizePageSize ? 100: 20, new LinkedMultiValueMap<>(), apiKey);
     }
 
-    private ResponseEntity<String> makeRestCall(String sUrl, int pageNum, int pageSize, MultiValueMap<String, String> extraQueryParams) {
+    private ResponseEntity<String> makeRestCall(String sUrl, int pageNum, int pageSize, MultiValueMap<String, String> extraQueryParams, String apiKey) {
         LOG.debug("Enter makeRestCall " + sUrl);
         UriComponentsBuilder thisuri =
                 UriComponentsBuilder.fromHttpUrl(sUrl)
@@ -418,10 +417,8 @@ public class DefaultGitlabClient implements GitlabClient {
                         .queryParam("page", pageNum)
                         .queryParams(extraQueryParams);
 
-        String token = this.settings.getApiKeys().get(0);
-
         return rest.exchange(thisuri.toUriString(), HttpMethod.GET,
-                new HttpEntity<>(createHeaders(token)),
+                new HttpEntity<>(createHeaders(apiKey)),
                 String.class);
 
     }
