@@ -1,29 +1,12 @@
 package com.capitalone.dashboard.collector;
 
-import com.capitalone.dashboard.model.BaseModel;
-import com.capitalone.dashboard.model.Build;
-import com.capitalone.dashboard.model.BuildStatus;
-import com.capitalone.dashboard.model.Collector;
-import com.capitalone.dashboard.model.CollectorItem;
-import com.capitalone.dashboard.model.CollectorType;
-import com.capitalone.dashboard.model.Commit;
-import com.capitalone.dashboard.model.Dashboard;
-import com.capitalone.dashboard.model.EnvironmentStage;
-import com.capitalone.dashboard.model.GitlabProject;
-import com.capitalone.dashboard.model.Pipeline;
-import com.capitalone.dashboard.model.PipelineCommit;
-import com.capitalone.dashboard.model.PipelineJobs;
-import com.capitalone.dashboard.model.PipelineStage;
-import com.capitalone.dashboard.model.RepoBranch;
-import com.capitalone.dashboard.repository.CollectorItemRepository;
-import com.capitalone.dashboard.repository.CollectorRepository;
-import com.capitalone.dashboard.repository.CommitRepository;
-import com.capitalone.dashboard.repository.ComponentRepository;
-import com.capitalone.dashboard.repository.DashboardRepository;
-import com.capitalone.dashboard.repository.PipelineRepository;
+import com.capitalone.dashboard.model.*;
+import com.capitalone.dashboard.repository.*;
 import com.capitalone.dashboard.util.Supplier;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.joda.time.DateTime;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -31,6 +14,7 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -43,16 +27,7 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -80,7 +55,7 @@ public class DefaultGitlabClient implements GitlabClient {
     public DefaultGitlabClient(Supplier<RestOperations> restOperationsSupplier,
                                GitlabSettings settings,
                                CommitRepository commitRepository,
-                               CollectorRepository collectorRepository, CollectorItemRepository collectorItemRepository,
+                               CollectorRepository collectorRepository, @Qualifier("collectorItemRepository") CollectorItemRepository collectorItemRepository,
                                PipelineRepository pipelineRepository, ComponentRepository componentRepository, DashboardRepository dashboardRepository) {
         this.rest = restOperationsSupplier.get();
         this.settings = settings;
@@ -100,8 +75,7 @@ public class DefaultGitlabClient implements GitlabClient {
         for (String projectId : settings.getProjectIds()) {
             try {
                 String url = joinURL(instanceUrl, new String[]{String.format("%s/%s", GITLAB_PROJECT_API_SUFFIX, projectId)});
-                final String apiKey = settings.getProjectKey(projectId);
-                ResponseEntity<String> responseEntity = makeRestCall(url, apiKey);
+                ResponseEntity<String> responseEntity = makeRestCall(url);
                 if (responseEntity == null) {
                     break;
                 }
@@ -119,7 +93,7 @@ public class DefaultGitlabClient implements GitlabClient {
 
                     LOG.debug("Process jobName " + projectName + " jobURL " + projectURL);
 
-                    getProjectDetails(projectName, projectURL, instanceUrl, result, url, apiKey);
+                    getProjectDetails(projectName, projectURL, instanceUrl, result, url, projectId);
 
                 } catch (ParseException e) {
                     LOG.error("Parsing jobs details on instance: " + instanceUrl, e);
@@ -135,9 +109,42 @@ public class DefaultGitlabClient implements GitlabClient {
         return result;
     }
 
+    private Commit getCommit(String commitId, String instanceUrl, String projectId) {
+        String url = joinURL(instanceUrl, new String[]{String.format("%s/%s", GITLAB_PROJECT_API_SUFFIX, projectId), "repository/commits", commitId});
+
+        ResponseEntity<GitLabCommit> response = makeCommitRestCall(url);
+
+        GitLabCommit gitlabCommit = response.getBody();
+
+        if (gitlabCommit == null) {
+            return null;
+        }
+
+        long timestamp = new DateTime(gitlabCommit.getCreatedAt()).getMillis();
+        int parentSize = CollectionUtils.isNotEmpty(gitlabCommit.getParentIds()) ? gitlabCommit.getParentIds().size() : 0;
+        CommitType commitType = parentSize > 1 ? CommitType.Merge : CommitType.New;
+
+        String web_url = gitlabCommit.getLastPipeline().getWeb_url();
+        String repo_url = web_url.split("/pipelines")[0];
+        Commit commit = new Commit();
+        commit.setTimestamp(System.currentTimeMillis());
+        commit.setScmUrl(repo_url);
+        commit.setScmBranch(gitlabCommit.getLastPipeline().getRef());
+        commit.setScmRevisionNumber(gitlabCommit.getId());
+        commit.setScmAuthor(gitlabCommit.getAuthorName());
+        commit.setScmCommitLog(gitlabCommit.getMessage());
+        commit.setScmCommitTimestamp(timestamp);
+        commit.setNumberOfChanges(1);
+        commit.setScmParentRevisionNumbers(gitlabCommit.getParentIds());
+        commit.setType(commitType);
+        return commit;
+
+
+    }
+
     @SuppressWarnings({"PMD.NPathComplexity", "PMD.ExcessiveMethodLength", "PMD.AvoidBranchingStatementAsLastInLoop", "PMD.EmptyIfStmt"})
     private void getProjectDetails(String projectName, String projectURL, String instanceUrl,
-                                   Map<GitlabProject, Map<jobData, Set<BaseModel>>> result, String url, String apiKey) throws URISyntaxException, ParseException {
+                                   Map<GitlabProject, Map<jobData, Set<BaseModel>>> result, String url, String projectId) throws URISyntaxException, ParseException {
         LOG.debug("getProjectDetails: projectName " + projectName + " projectURL: " + projectURL);
 
         Map<jobData, Set<BaseModel>> jobDataMap = new HashMap();
@@ -146,13 +153,16 @@ public class DefaultGitlabClient implements GitlabClient {
         gitlabProject.setInstanceUrl(instanceUrl);
         gitlabProject.setJobName(projectName);
         gitlabProject.setJobUrl(projectURL);
-        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey);
+        gitlabProject.getOptions().put("projectId", projectId);
+
+        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url);
 
         jobDataMap.put(jobData.BUILD, pipelines);
 
         result.put(gitlabProject, jobDataMap);
     }
-    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey) throws URISyntaxException, ParseException {
+
+    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum) throws URISyntaxException, ParseException {
 
         String allPipelinesUrl = String.format("%s/%s", projectApiUrl, "pipelines");
         LOG.info("Fetching pipelines for project {}, page {}", projectApiUrl, pageNum);
@@ -160,7 +170,7 @@ public class DefaultGitlabClient implements GitlabClient {
         if (settings.isConsiderOnlyMasterBuilds()) {
             extraQueryParams.put("ref", Arrays.asList("master"));
         }
-        ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
+        ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams);
         String returnJSON = responseEntity.getBody();
         if (StringUtils.isEmpty(returnJSON)) {
             return Collections.emptySet();
@@ -189,11 +199,11 @@ public class DefaultGitlabClient implements GitlabClient {
 
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl) throws URISyntaxException, ParseException {
         Set<BaseModel> allPipelines = new LinkedHashSet<>();
         int nextPage = 1;
         while (true) {
-            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey);
+            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage);
             if (pipelines.isEmpty()) {
                 break;
             }
@@ -204,43 +214,42 @@ public class DefaultGitlabClient implements GitlabClient {
     }
 
     @Override
-    public Build getPipelineDetails(String buildUrl, String instanceUrl) {
+    public Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId) {
         try {
-            final String projectId = getProjectIdFromUrl(buildUrl);
-            final String apiKey = settings.getProjectKey(projectId);
-            ResponseEntity<String> result = makeRestCall(buildUrl, true, apiKey);
+            ResponseEntity<String> result = makeRestCall(buildUrl, true);
             LOG.info(String.format("Getting pipeline details: %s", buildUrl));
             String resultJSON = result.getBody();
             if (StringUtils.isEmpty(resultJSON)) {
                 LOG.error("Error getting build details for. URL=" + buildUrl);
                 return null;
             }
-            PipelineJobs jobsForPipeline = getJobsForPipeline(buildUrl, apiKey);
+            PipelineJobs jobsForPipeline = getJobsForPipeline(buildUrl);
             JSONParser parser = new JSONParser();
             try {
                 JSONObject buildJson = (JSONObject) parser.parse(resultJSON);
-                Boolean building = "running".equalsIgnoreCase(getString(buildJson, "status"));
-                Boolean cancelled = "canceled".equalsIgnoreCase(getString(buildJson, "status"));
 
-                if (!building && !cancelled) {
-                    Build build = new Build();
-                    build.setNumber(buildJson.get("id").toString());
-                    build.setBuildUrl(buildUrl);
-                    build.setTimestamp(jobsForPipeline.getEarliestStartTime());
-                    build.setStartTime(jobsForPipeline.getEarliestStartTime());
-                    build.setDuration(jobsForPipeline.getRelevantJobTime());
-                    build.setEndTime(jobsForPipeline.getLastEndTime());
-                    build.setBuildStatus(getBuildStatus(buildJson));
+                if (isBuildCompleted(buildJson) && jobsForPipeline != null) {
+                    Build build = getBuild(buildUrl, jobsForPipeline, buildJson);
                     Iterable<String> commitIds = jobsForPipeline.getCommitIds();
                     List<Commit> commits = new ArrayList<>();
                     if (commitIds != null) {
                         commitIds.forEach(commitId -> {
-                            List<Commit> revisionNumbers = commitRepository.findByScmRevisionNumber(commitId).stream()
-                                    .filter(c -> c.getScmParentRevisionNumbers().size() > 1) /* Extract only merge commits */
-                                    .collect(Collectors.toList());
-                            if (revisionNumbers != null && !revisionNumbers.isEmpty()) {
-                                commits.addAll(revisionNumbers);
+                            List<Commit> matchedCommits = commitRepository.findByScmRevisionNumber(commitId);
+                            Commit newCommit;
+                            if (matchedCommits != null && matchedCommits.size() > 0) {
+                                newCommit = matchedCommits.get(0);
+                            } else {
+                                newCommit = getCommit(commitId, instanceUrl, gitProjectId);
+
                             }
+
+                            List<String> parentRevisionNumbers = newCommit != null ? newCommit.getScmParentRevisionNumbers() : null;
+                            /* Extract only merge comm  its */
+                            if (parentRevisionNumbers != null && !parentRevisionNumbers.isEmpty() && parentRevisionNumbers.size() > 1) {
+                                commits.add(newCommit);
+                            }
+
+
                         });
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
@@ -262,11 +271,22 @@ public class DefaultGitlabClient implements GitlabClient {
         return null;
     }
 
-    private String getProjectIdFromUrl(String buildUrl) {
-        //TODO Null checks
-        final String s = buildUrl.split("projects/")[1];
-        final String projectId = s.substring(0, s.indexOf("/"));
-        return projectId;
+    private Boolean isBuildCompleted(JSONObject buildJson) {
+        boolean building = "running".equalsIgnoreCase(getString(buildJson, "status"));
+        boolean cancelled = "canceled".equalsIgnoreCase(getString(buildJson, "status"));
+        return !building && !cancelled;
+    }
+
+    private Build getBuild(String buildUrl, PipelineJobs jobsForPipeline, JSONObject buildJson) {
+        Build build = new Build();
+        build.setNumber(buildJson.get("id").toString());
+        build.setBuildUrl(buildUrl);
+        build.setTimestamp(jobsForPipeline.getEarliestStartTime());
+        build.setStartTime(jobsForPipeline.getEarliestStartTime());
+        build.setDuration(jobsForPipeline.getRelevantJobTime());
+        build.setEndTime(jobsForPipeline.getLastEndTime());
+        build.setBuildStatus(getBuildStatus(buildJson));
+        return build;
     }
 
     /**
@@ -327,10 +347,10 @@ public class DefaultGitlabClient implements GitlabClient {
         return dashboardRepository.findByApplicationComponentIdsIn(componentIds);
     }
 
-    private PipelineJobs getJobsForPipeline(String buildUrl, String apiKey) {
+    private PipelineJobs getJobsForPipeline(String buildUrl) {
         PipelineJobs pipelineJobs = new PipelineJobs();
         try {
-            ResponseEntity<String> result = makeRestCall(buildUrl + "/jobs", true, apiKey);
+            ResponseEntity<String> result = makeRestCall(buildUrl + "/jobs", true);
             String resultJSON = result.getBody();
             if (StringUtils.isEmpty(resultJSON)) {
                 LOG.error("Error getting build details for. URL=" + buildUrl);
@@ -372,24 +392,36 @@ public class DefaultGitlabClient implements GitlabClient {
         }
     }
 
-    private ResponseEntity<String> makeRestCall(String url, String apiKey) {
-        return makeRestCall(url, false, apiKey);
-    }
-    @SuppressWarnings("PMD")
-    private ResponseEntity<String> makeRestCall(String sUrl, boolean maximizePageSize, String apiKey) {
-        return makeRestCall(sUrl, 1, maximizePageSize ? 100: 20, new LinkedMultiValueMap<>(), apiKey);
+    private ResponseEntity<String> makeRestCall(String url) {
+        return makeRestCall(url, false);
     }
 
-    private ResponseEntity<String> makeRestCall(String sUrl, int pageNum, int pageSize, MultiValueMap<String, String> extraQueryParams, String apiKey) {
+    private ResponseEntity<GitLabCommit> makeCommitRestCall(String url) {
+        String token = this.settings.getApiKeys().get(0);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("PRIVATE-TOKEN", token);
+
+        return rest.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), GitLabCommit.class);
+    }
+
+    @SuppressWarnings("PMD")
+    private ResponseEntity<String> makeRestCall(String sUrl, boolean maximizePageSize) {
+        return makeRestCall(sUrl, 1, maximizePageSize ? 100: 20, new LinkedMultiValueMap<>());
+    }
+
+    private ResponseEntity<String> makeRestCall(String sUrl, int pageNum, int pageSize, MultiValueMap<String, String> extraQueryParams) {
         LOG.debug("Enter makeRestCall " + sUrl);
-        UriComponentsBuilder thisUri =
+        UriComponentsBuilder thisuri =
                 UriComponentsBuilder.fromHttpUrl(sUrl)
                         .queryParam("per_page", pageSize)
                         .queryParam("page", pageNum)
                         .queryParams(extraQueryParams);
 
-        return rest.exchange(thisUri.toUriString(), HttpMethod.GET,
-                new HttpEntity<>(createHeaders(apiKey)),
+        String token = this.settings.getApiKeys().get(0);
+
+        return rest.exchange(thisuri.toUriString(), HttpMethod.GET,
+                new HttpEntity<>(createHeaders(token)),
                 String.class);
 
     }
