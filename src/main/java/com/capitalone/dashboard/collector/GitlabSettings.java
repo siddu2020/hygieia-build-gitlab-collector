@@ -1,12 +1,14 @@
 package com.capitalone.dashboard.collector;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Bean to hold settings specific to the Gitlab collector.
@@ -23,7 +25,7 @@ public class GitlabSettings {
     //eg. DEV, QA, PROD etc
     private List<String> environments = new ArrayList<>();
     private List<String> usernames = new ArrayList<>();
-    private List<String> apiKeys = new ArrayList<>();
+    private String apiKeys;
     private String dockerLocalHostIP; //null if not running in docker on http://localhost
     private int pageSize;
     @Value("${folderDepth:10}")
@@ -50,10 +52,10 @@ public class GitlabSettings {
     }
 
     public List<String> getApiKeys() {
-        return apiKeys;
+        return Arrays.asList(apiKeys.split(","));
     }
 
-    public void setApiKeys(List<String> apiKeys) {
+    public void setApiKeys(String apiKeys) {
         this.apiKeys = apiKeys;
     }
 
@@ -112,5 +114,13 @@ public class GitlabSettings {
 
     public void setConsiderOnlyMasterBuilds(boolean considerOnlyMasterBuilds) {
         this.considerOnlyMasterBuilds = considerOnlyMasterBuilds;
+    }
+
+    public String getProjectKey(String projectId) {
+        return IntStream.range(0, getProjectIds().size())
+                .filter(index -> projectId.equals(getProjectIds().get(index)))
+                .mapToObj(index -> getApiKeys().get(index))
+                .findFirst()
+                .orElse("");
     }
 }
