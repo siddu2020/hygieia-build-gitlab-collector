@@ -60,12 +60,13 @@ gitlab.folderDepth=10
 # (required for Cloudbees Jenkins Ops Center) For example,
 gitlab.servers[0]=${GITLAB_PROTOCOL:-https}://${GITLAB_HOST:-gitlab.com}
 
+#A comma seperated list of gitlab projectids
+gitlab.projectIds=${GITLAB_PROJECT_IDS}
+
 # Another option: If using same username/password Jenkins auth,
 # set username/apiKey to use HTTP Basic Auth (blank=no auth)
-gitlab.apiKeys[0]=${GITLAB_API_TOKEN}
-
-#Project ids
-gitlab.projectIds=${GITLAB_PROJECT_IDS}
+# A comma seperated list of api token corresponding to the project id mentioned above
+gitlab.apiKeys=${GITLAB_API_TOKEN}
 
 # Determines if build console log is collected - defaults to false
 gitlab.saveLog=true
