@@ -1,14 +1,7 @@
 package com.capitalone.dashboard.collector;
 
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 import com.capitalone.dashboard.model.*;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +9,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -47,13 +41,15 @@ public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
     private final GitlabClient gitlabClient;
     private final GitlabSettings gitlabSettings;
     private final ComponentRepository dbComponentRepository;
-	private final ConfigurationRepository configurationRepository;
+    private final ConfigurationRepository configurationRepository;
 
     @Autowired
     public GitlabCollectorTask(TaskScheduler taskScheduler,
                                GitlabCollectorRepository gitlabCollectorRepository,
                                GitlabJobRepository gitlabJobRepository,
-                               BuildRepository buildRepository, CollItemConfigHistoryRepository configRepository, GitlabClient gitlabClient,
+                               BuildRepository buildRepository,
+                               @Qualifier("collItemConfigHistoryRepository") CollItemConfigHistoryRepository configRepository,
+                               GitlabClient gitlabClient,
                                GitlabSettings gitlabSettings,
                                ComponentRepository dbComponentRepository,
                                ConfigurationRepository configurationRepository) {
@@ -207,7 +203,7 @@ public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
      * Iterates over the enabled build jobs and adds new builds to the database.
      *
      * @param enabledJobs list of enabled {@link GitlabProject}s
-     * @param dataByJob maps a {@link GitlabProject} to a map of data with {@link Build}s.
+     * @param dataByJob   maps a {@link GitlabProject} to a map of data with {@link Build}s.
      */
     private void addNewBuilds(List<GitlabProject> enabledJobs,
                               Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> dataByJob) {
@@ -218,44 +214,55 @@ public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
             if (job.isPushed()) continue;
             // process new builds in the order of their build numbers - this has implication to handling of commits in BuildEventListener
 
-            Map<GitlabClient.jobData, Set<BaseModel>> jobDataSetMap = dataByJob.get(job);
-            if (jobDataSetMap == null) {
-                continue;
-            }
-            Set<BaseModel> buildsSet = jobDataSetMap.get(GitlabClient.jobData.BUILD);
+            Map.Entry<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> currentJob = dataByJob.entrySet().stream()
+                    .filter(e -> e.getKey().equals(job))
+                    .findFirst().orElse(null);
 
-            ArrayList<BaseModel> builds = Lists.newArrayList(nullSafe(buildsSet));
+            if (currentJob != null) {
 
-            builds.sort(Comparator.comparingInt(b -> Integer.valueOf(((Build) b).getNumber())));
-            int counter = 1;
-            int totalBuilds = builds.size();
-            for (BaseModel buildSummary : builds) {
-                Build bSummary = (Build) buildSummary;
-                BuildStatus buildStatus = bSummary.getBuildStatus();
-                if (buildStatus != null && !buildStatus.equals(BuildStatus.Success)) {
-                    LOG.info(String.format("Skipping details for build %d (with status %s) of total %d builds",
-                            counter++, buildStatus, totalBuilds));
+                Map<GitlabClient.jobData, Set<BaseModel>> jobDataSetMap = currentJob.getValue();
+
+                String gitlabProjectId = currentJob.getKey().getOptions().get("projectId").toString();
+
+                if (jobDataSetMap == null) {
                     continue;
                 }
-                if (isNewBuild(job, bSummary)) {
-                    LOG.info(String.format("Getting details for new build %d (Number: %s) of total %d builds",
-                            counter++, bSummary.getNumber(), totalBuilds));
-                    Build build = gitlabClient.getPipelineDetails((bSummary)
-                            .getBuildUrl(), job.getInstanceUrl());
-                    job.setLastUpdated(System.currentTimeMillis());
-                    gitlabJobRepository.save(job);
-                    if (build != null) {
-                        build.setCollectorItemId(job.getId());
-                        buildRepository.save(build);
-                        count++;
+                Set<BaseModel> buildsSet = jobDataSetMap.get(GitlabClient.jobData.BUILD);
+
+                ArrayList<BaseModel> builds = Lists.newArrayList(nullSafe(buildsSet));
+
+                builds.sort(Comparator.comparingInt(b -> Integer.valueOf(((Build) b).getNumber())));
+                int counter = 1;
+                int totalBuilds = builds.size();
+                for (BaseModel buildSummary : builds) {
+                    Build bSummary = (Build) buildSummary;
+                    BuildStatus buildStatus = bSummary.getBuildStatus();
+                    if (buildStatus != null && !buildStatus.equals(BuildStatus.Success)) {
+                        LOG.info(String.format("Skipping details for build %d (with status %s) of total %d builds",
+                                counter++, buildStatus, totalBuilds));
+                        continue;
                     }
-                } else {
-                    LOG.info(String.format("Skipping details for existing build %d of total %d builds", counter++, totalBuilds));
+                    if (isNewBuild(job, bSummary)) {
+                        LOG.info(String.format("Getting details for new build %d (Number: %s) of total %d builds",
+                                counter++, bSummary.getNumber(), totalBuilds));
+                        Build build = gitlabClient.getPipelineDetails((bSummary)
+                                .getBuildUrl(), job.getInstanceUrl(), gitlabProjectId);
+                        job.setLastUpdated(System.currentTimeMillis());
+                        gitlabJobRepository.save(job);
+                        if (build != null) {
+                            build.setCollectorItemId(job.getId());
+                            buildRepository.save(build);
+                            count++;
+                        }
+                    } else {
+                        LOG.info(String.format("Skipping details for existing build %d of total %d builds", counter++, totalBuilds));
+                    }
                 }
             }
+            log("New builds", start, count);
         }
-        log("New builds", start, count);
     }
+
 
     private void addNewConfigs(List<GitlabProject> enabledJobs,
                               Map<GitlabProject, Map<GitlabClient.jobData, Set<BaseModel>>> dataByJob) {
