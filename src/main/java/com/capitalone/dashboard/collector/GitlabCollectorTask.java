@@ -246,7 +246,7 @@ public class GitlabCollectorTask extends CollectorTask<GitlabCollector> {
                         LOG.info(String.format("Getting details for new build %d (Number: %s) of total %d builds",
                                 counter++, bSummary.getNumber(), totalBuilds));
                         Build build = gitlabClient.getPipelineDetails((bSummary)
-                                .getBuildUrl(), job.getInstanceUrl(), gitlabProjectId);
+                                .getBuildUrl(), job.getInstanceUrl(), gitlabProjectId, job.getCollectorId());
                         job.setLastUpdated(System.currentTimeMillis());
                         gitlabJobRepository.save(job);
                         if (build != null) {
