@@ -11,7 +11,8 @@ import java.util.stream.Stream;
 
 public class PipelineJobs {
 
-    private List<String> relevantStages = Arrays.asList("build", "test", "analysis", "docker", "rtp_coupon_cache_refresh");
+    private List<String> relevantStages = Arrays.asList("build", "test", "analysis", "docker", "rtp_coupon_cache_refresh",
+        "setup", "publish-pact", "code_quality", "dockerize", "docker:tag");
 
     private List<PipelineJob> jobList = new ArrayList<>();
 
