@@ -66,7 +66,7 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 # Another option: If using same username/password Jenkins auth,
 # set username/apiKey to use HTTP Basic Auth (blank=no auth)
 # A comma seperated list of api token corresponding to the project id mentioned above
-gitlab.apiKeys=${GITLAB_API_TOKEN}
+gitlab.apiKeys=${GITLAB_API_TOKENS}
 
 # Determines if build console log is collected - defaults to false
 gitlab.saveLog=true
