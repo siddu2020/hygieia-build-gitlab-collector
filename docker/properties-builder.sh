@@ -69,6 +69,7 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 gitlab.apiKeys=${GITLAB_API_TOKEN}
 gitlab.buildStages=${GITLAB_BUILD_STAGES}
 
+
 # Determines if build console log is collected - defaults to false
 gitlab.saveLog=true
 
