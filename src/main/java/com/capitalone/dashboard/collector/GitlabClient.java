@@ -3,6 +3,7 @@ package com.capitalone.dashboard.collector;
 import com.capitalone.dashboard.model.BaseModel;
 import com.capitalone.dashboard.model.Build;
 import com.capitalone.dashboard.model.GitlabProject;
+import org.bson.types.ObjectId;
 
 import java.util.Map;
 import java.util.Set;
@@ -27,10 +28,12 @@ public interface GitlabClient {
     /**
      * Fetch full populated build information for a build.
      *
+     *
+     * @param url
      * @param buildUrl the url of the build
      * @param instanceUrl
-     * @param gitProjectId
+     * @param collectorId
      * @return a Build instance or null
      */
-    Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId);
+    Build getPipelineDetails(String url, String buildUrl, String instanceUrl, ObjectId collectorId);
 }

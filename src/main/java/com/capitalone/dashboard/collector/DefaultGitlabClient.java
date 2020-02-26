@@ -216,7 +216,7 @@ public class DefaultGitlabClient implements GitlabClient {
     }
 
     @Override
-    public Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId) {
+    public Build getPipelineDetails(String buildUrl, String instanceUrl, String gitProjectId, ObjectId collectorId) {
         try {
             final String apiKey = settings.getProjectKey(gitProjectId);
             ResponseEntity<String> result = makeRestCall(buildUrl, true, apiKey);
@@ -256,7 +256,7 @@ public class DefaultGitlabClient implements GitlabClient {
                         });
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
-                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime());
+                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId);
                     build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
                     build.getCodeRepos().add(
                             new RepoBranch("todo-url", getString(buildJson, "ref"), RepoBranch.RepoType.GIT));
@@ -284,10 +284,10 @@ public class DefaultGitlabClient implements GitlabClient {
         Build build = new Build();
         build.setNumber(buildJson.get("id").toString());
         build.setBuildUrl(buildUrl);
-        build.setTimestamp(jobsForPipeline.getEarliestStartTime());
-        build.setStartTime(jobsForPipeline.getEarliestStartTime());
-        build.setDuration(jobsForPipeline.getRelevantJobTime());
-        build.setEndTime(jobsForPipeline.getLastEndTime());
+        build.setTimestamp(jobsForPipeline.getEarliestStartTime(settings.getBuildStages()));
+        build.setStartTime(jobsForPipeline.getEarliestStartTime(settings.getBuildStages()));
+        build.setDuration(jobsForPipeline.getRelevantJobTime(settings.getBuildStages()));
+        build.setEndTime(jobsForPipeline.getLastEndTime(settings.getBuildStages()));
         build.setBuildStatus(getBuildStatus(buildJson));
         return build;
     }
@@ -307,9 +307,10 @@ public class DefaultGitlabClient implements GitlabClient {
         return pipeline;
     }
 
-    private void processPipelineCommits(List<Commit> commits, long timestamp) {
+    private void processPipelineCommits(List<Commit> commits, long timestamp, ObjectId collectorId) {
         if (commits.size() > 0) {
-            List<Dashboard> allDashboardsForCommit = findAllDashboardsForCommit(commits.get(0));
+            List<Dashboard> allDashboardsForCommit = findAllDashboardsForCollectorId(collectorId);
+            List<String> dashBoardIds = allDashboardsForCommit.stream().map(d -> d.getId().toString()).collect(Collectors.toList());
 
             String environmentName = PipelineStage.BUILD.getName();
             List<Collector> collectorList = collectorRepository.findByCollectorType(CollectorType.Product);
@@ -317,7 +318,6 @@ public class DefaultGitlabClient implements GitlabClient {
 
 
             for (CollectorItem collectorItem : collectorItemList) {
-                List<String> dashBoardIds = allDashboardsForCommit.stream().map(d -> d.getId().toString()).collect(Collectors.toList());
                 boolean dashboardId = dashBoardIds.contains(collectorItem.getOptions().get("dashboardId").toString());
                 if (dashboardId) {
                     Pipeline pipeline = getOrCreatePipeline(collectorItem);
@@ -342,11 +342,14 @@ public class DefaultGitlabClient implements GitlabClient {
         }
     }
 
-    private List<Dashboard> findAllDashboardsForCommit(Commit commit) {
-        if (commit.getCollectorItemId() == null) return new ArrayList<>();
-        CollectorItem commitCollectorItem = collectorItemRepository.findOne(commit.getCollectorItemId());
-        List<com.capitalone.dashboard.model.Component> components = componentRepository.findBySCMCollectorItemId(commitCollectorItem.getId());
-        List<ObjectId> componentIds = components.stream().map(BaseModel::getId).collect(Collectors.toList());
+    private List<Dashboard> findAllDashboardsForCollectorId(ObjectId collectorId) {
+        List<CollectorItem> collectorItems = collectorItemRepository.findByCollectorIdIn(Collections.singletonList(collectorId));
+        List<ObjectId> componentIds = new ArrayList<>();
+        if(collectorItems != null && collectorItems.size() > 0) {
+            CollectorItem CollectorItemId = collectorItems.get(0);
+            List<com.capitalone.dashboard.model.Component> components = componentRepository.findByBuildCollectorItemId(CollectorItemId.getId());
+            componentIds = components.stream().map(BaseModel::getId).collect(Collectors.toList());
+        }
         return dashboardRepository.findByApplicationComponentIdsIn(componentIds);
     }
 

@@ -11,9 +11,6 @@ import java.util.stream.Stream;
 
 public class PipelineJobs {
 
-    private List<String> relevantStages = Arrays.asList("build", "test", "analysis", "docker", "rtp_coupon_cache_refresh",
-        "setup", "publish-pact", "code_quality", "dockerize", "docker:tag");
-
     private List<PipelineJob> jobList = new ArrayList<>();
 
     public void addJob(JSONObject jsonObject) {
@@ -32,23 +29,23 @@ public class PipelineJobs {
         jobList.add(new PipelineJob(stage, startedAt, finishedAt, duration, commitId, parentCommitIds));
     }
 
-    public long getRelevantJobTime() {
-        return this.jobList.stream().filter(job -> relevantStages
-                .contains(job.getStage()))
+    public long getRelevantJobTime(List<String> buildStages) {
+        return this.jobList.stream().filter(job -> buildStages
+                .contains(job.getStage().toLowerCase()))
                 .map(PipelineJob::getDuration)
                 .mapToLong(Long::longValue).sum();
     }
 
-    public long getEarliestStartTime() {
-        return this.jobList.stream().filter(job -> relevantStages
-                .contains(job.getStage()))
+    public long getEarliestStartTime(List<String> buildStages) {
+        return this.jobList.stream().filter(job -> buildStages
+                .contains(job.getStage().toLowerCase()))
                 .map(PipelineJob::getStartedAt)
                 .mapToLong(Long::longValue).min().orElse(0);
     }
 
-    public long getLastEndTime() {
-        return this.jobList.stream().filter(job -> relevantStages
-                .contains(job.getStage()))
+    public long getLastEndTime(List<String> buildStages) {
+        return this.jobList.stream().filter(job -> buildStages
+                .contains(job.getStage().toLowerCase()))
                 .map(PipelineJob::getFinishedAt)
                 .mapToLong(Long::longValue).max().orElse(0);
     }
@@ -56,7 +53,7 @@ public class PipelineJobs {
     public Iterable<String> getCommitIds() {
         return Stream.concat(jobList.stream().map(PipelineJob::getCommitId),
                 jobList.stream().flatMap(j -> j.getParentCommitIds().stream()))
-        .collect(Collectors.toCollection(LinkedHashSet::new));
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private long getTime(JSONObject buildJson, String jsonField) {
@@ -66,7 +63,7 @@ public class PipelineJobs {
             return Instant.from(DateTimeFormatter
                     .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz")
                     .parse(getString(buildJson, jsonField))).toEpochMilli();
-        } else{
+        } else {
             return 0L;
         }
     }
