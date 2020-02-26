@@ -256,7 +256,7 @@ public class DefaultGitlabClient implements GitlabClient {
                         });
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
-                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(), collectorId);
+                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId);
                     build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
                     build.getCodeRepos().add(
                             new RepoBranch("todo-url", getString(buildJson, "ref"), RepoBranch.RepoType.GIT));
@@ -284,10 +284,10 @@ public class DefaultGitlabClient implements GitlabClient {
         Build build = new Build();
         build.setNumber(buildJson.get("id").toString());
         build.setBuildUrl(buildUrl);
-        build.setTimestamp(jobsForPipeline.getEarliestStartTime());
-        build.setStartTime(jobsForPipeline.getEarliestStartTime());
-        build.setDuration(jobsForPipeline.getRelevantJobTime());
-        build.setEndTime(jobsForPipeline.getLastEndTime());
+        build.setTimestamp(jobsForPipeline.getEarliestStartTime(settings.getBuildStages()));
+        build.setStartTime(jobsForPipeline.getEarliestStartTime(settings.getBuildStages()));
+        build.setDuration(jobsForPipeline.getRelevantJobTime(settings.getBuildStages()));
+        build.setEndTime(jobsForPipeline.getLastEndTime(settings.getBuildStages()));
         build.setBuildStatus(getBuildStatus(buildJson));
         return build;
     }

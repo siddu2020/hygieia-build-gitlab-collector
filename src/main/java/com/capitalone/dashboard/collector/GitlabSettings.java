@@ -21,6 +21,7 @@ public class GitlabSettings {
     private String cron;
     private List<String> servers = new ArrayList<>();
     private String projectIds = "";
+    private String buildStages;
     private List<String> niceNames;
     //eg. DEV, QA, PROD etc
     private List<String> environments = new ArrayList<>();
@@ -67,6 +68,9 @@ public class GitlabSettings {
         return environments;
     }
 
+    public void setBuildStages(String buildStages) {
+        this.buildStages = buildStages;
+    }
     //Docker NATs the real host localhost to 10.0.2.2 when running in docker
 	//as localhost is stored in the JSON payload from gitlab we need
 	//this hack to fix the addresses
@@ -122,5 +126,9 @@ public class GitlabSettings {
                 .mapToObj(index -> getApiKeys().get(index))
                 .findFirst()
                 .orElse("");
+    }
+
+    List<String> getBuildStages() {
+        return Arrays.asList(buildStages.toLowerCase().split(","));
     }
 }
