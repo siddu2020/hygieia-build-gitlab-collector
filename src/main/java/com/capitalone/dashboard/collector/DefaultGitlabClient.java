@@ -256,7 +256,7 @@ public class DefaultGitlabClient implements GitlabClient {
                         });
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
-                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId);
+                    processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId, gitProjectId);
                     build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
                     build.getCodeRepos().add(
                             new RepoBranch("todo-url", getString(buildJson, "ref"), RepoBranch.RepoType.GIT));
@@ -307,49 +307,58 @@ public class DefaultGitlabClient implements GitlabClient {
         return pipeline;
     }
 
-    private void processPipelineCommits(List<Commit> commits, long timestamp, ObjectId collectorId) {
-        if (commits.size() > 0) {
-            List<Dashboard> allDashboardsForCommit = findAllDashboardsForCollectorId(collectorId);
-            List<String> dashBoardIds = allDashboardsForCommit.stream().map(d -> d.getId().toString()).collect(Collectors.toList());
+    private void processPipelineCommits(List<Commit> commits, long timestamp, ObjectId collectorId, String gitProjectId) {
+        if (commits.size() <= 0) {
+            return;
+        }
+        List<Dashboard> allDashboardsForCommit = findAllDashboardsForCollectorId(collectorId, gitProjectId);
+        List<String> dashBoardIds = allDashboardsForCommit.stream().map(d -> d.getId().toString()).collect(Collectors.toList());
 
-            String environmentName = PipelineStage.BUILD.getName();
-            List<Collector> collectorList = collectorRepository.findByCollectorType(CollectorType.Product);
-            List<CollectorItem> collectorItemList = collectorItemRepository.findByCollectorIdIn(collectorList.stream().map(BaseModel::getId).collect(Collectors.toList()));
+        String environmentName = PipelineStage.BUILD.getName();
+        List<Collector> collectorList = collectorRepository.findByCollectorType(CollectorType.Product);
+        List<CollectorItem> collectorItemList = collectorItemRepository.findByCollectorIdIn(collectorList.stream().map(BaseModel::getId).collect(Collectors.toList()));
 
 
-            for (CollectorItem collectorItem : collectorItemList) {
-                boolean dashboardId = dashBoardIds.contains(collectorItem.getOptions().get("dashboardId").toString());
-                if (dashboardId) {
-                    Pipeline pipeline = getOrCreatePipeline(collectorItem);
-                    Map<String, EnvironmentStage> environmentStageMap = pipeline.getEnvironmentStageMap();
-                    if (environmentStageMap.get(environmentName) == null) {
-                        environmentStageMap.put(environmentName, new EnvironmentStage());
-                    }
-
-                    EnvironmentStage environmentStage = environmentStageMap.get(environmentName);
-                    if (environmentStage.getCommits() == null) {
-                        environmentStage.setCommits(new HashSet<>());
-                    }
-                    environmentStage.getCommits().addAll(commits.stream()
-                            .map(commit -> {
-                                //commit.setTimestamp(timestamp); <--- Not sure if we should do this.
-                                // IMO, the SCM timestamp should be unaltered.
-                                return new PipelineCommit(commit, timestamp);
-                            }).collect(Collectors.toSet()));
-                    pipelineRepository.save(pipeline);
+        for (CollectorItem collectorItem : collectorItemList) {
+            boolean dashboardId = dashBoardIds.contains(collectorItem.getOptions().get("dashboardId").toString());
+            if (dashboardId) {
+                Pipeline pipeline = getOrCreatePipeline(collectorItem);
+                Map<String, EnvironmentStage> environmentStageMap = pipeline.getEnvironmentStageMap();
+                if (environmentStageMap.get(environmentName) == null) {
+                    environmentStageMap.put(environmentName, new EnvironmentStage());
                 }
+
+                EnvironmentStage environmentStage = environmentStageMap.get(environmentName);
+                if (environmentStage.getCommits() == null) {
+                    environmentStage.setCommits(new HashSet<>());
+                }
+                environmentStage.getCommits().addAll(commits.stream()
+                        .map(commit -> {
+                            //commit.setTimestamp(timestamp); <--- Not sure if we should do this.
+                            // IMO, the SCM timestamp should be unaltered.
+                            return new PipelineCommit(commit, timestamp);
+                        }).collect(Collectors.toSet()));
+                pipelineRepository.save(pipeline);
             }
         }
     }
 
-    private List<Dashboard> findAllDashboardsForCollectorId(ObjectId collectorId) {
+    private List<Dashboard> findAllDashboardsForCollectorId(ObjectId collectorId, String gitProjectId) {
         List<CollectorItem> collectorItems = collectorItemRepository.findByCollectorIdIn(Collections.singletonList(collectorId));
-        List<ObjectId> componentIds = new ArrayList<>();
-        if(collectorItems != null && collectorItems.size() > 0) {
-            CollectorItem CollectorItemId = collectorItems.get(0);
-            List<com.capitalone.dashboard.model.Component> components = componentRepository.findByBuildCollectorItemId(CollectorItemId.getId());
-            componentIds = components.stream().map(BaseModel::getId).collect(Collectors.toList());
+        if (collectorItems == null || collectorItems.size() == 0) {
+            return Collections.emptyList();
         }
+
+        Optional<CollectorItem> collectorItemOptional =
+                collectorItems.stream().filter(item ->
+                        gitProjectId.equals(item.getOptions().get("projectId"))).findFirst();
+        if (!collectorItemOptional.isPresent()) {
+            return Collections.emptyList();
+        }
+        CollectorItem collectorItem = collectorItemOptional.get();
+        List<com.capitalone.dashboard.model.Component> components = componentRepository
+                .findByBuildCollectorItemId(collectorItem.getId());
+        List<ObjectId> componentIds = components.stream().map(BaseModel::getId).collect(Collectors.toList());
         return dashboardRepository.findByApplicationComponentIdsIn(componentIds);
     }
 
