@@ -67,7 +67,7 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 # set username/apiKey to use HTTP Basic Auth (blank=no auth)
 # A comma seperated list of api token corresponding to the project id mentioned above
 gitlab.apiKeys=${GITLAB_API_TOKENS}
-gitlab.buildStages=${GITLAB_BUILD_STAGES}
+gitlab.buildStages=${GITLAB_BUILD_STAGES:-build,test,analysis,docker,rtp_coupon_cache_refresh}
 
 
 # Determines if build console log is collected - defaults to false
