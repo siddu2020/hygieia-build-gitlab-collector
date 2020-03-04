@@ -27,6 +27,7 @@ public class GitlabSettings {
     private List<String> environments = new ArrayList<>();
     private List<String> usernames = new ArrayList<>();
     private String apiKeys;
+    private String repoNames;
     private String dockerLocalHostIP; //null if not running in docker on http://localhost
     private int pageSize;
     @Value("${folderDepth:10}")
@@ -128,7 +129,23 @@ public class GitlabSettings {
                 .orElse("");
     }
 
+    public String getRepoName(String projectId) {
+        return IntStream.range(0, getProjectIds().size())
+                .filter(index -> projectId.equals(getProjectIds().get(index)))
+                .mapToObj(index -> getRepoNames().get(index))
+                .findFirst()
+                .orElse("");
+    }
+
     List<String> getBuildStages() {
         return Arrays.asList(buildStages.toLowerCase().split(","));
+    }
+
+    public List<String> getRepoNames() {
+        return Arrays.asList(repoNames.split(","));
+    }
+
+    public void setRepoNames(String repoNames) {
+        this.repoNames = repoNames;
     }
 }
