@@ -68,7 +68,7 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 # A comma seperated list of api token corresponding to the project id mentioned above
 gitlab.apiKeys=${GITLAB_API_TOKENS}
 gitlab.buildStages=${GITLAB_BUILD_STAGES:-build,test,analysis,docker,rtp_coupon_cache_refresh}
-gitlab.repoNames=${GITLAB_REPO_NAMES}
+gitlab.branchNames=${GITLAB_BRANCH_NAMES}
 
 
 # Determines if build console log is collected - defaults to false

@@ -258,7 +258,11 @@ public class DefaultGitlabClient implements GitlabClient {
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
                     processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId, gitProjectId);
-                    build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
+
+                    if(buildJson.containsKey("user") && buildJson.get("user") !=null){
+                        build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
+                    }
+
                     build.getCodeRepos().add(
                             new RepoBranch("todo-url", getString(buildJson, "ref"), RepoBranch.RepoType.GIT));
                     return build;
