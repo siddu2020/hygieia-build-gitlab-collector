@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -129,7 +128,7 @@ public class GitlabSettings {
                 .orElse("");
     }
 
-    public String getRepoName(String projectId) {
+    public String getBranchName(String projectId) {
         return IntStream.range(0, getProjectIds().size())
                 .filter(index -> projectId.equals(getProjectIds().get(index)))
                 .mapToObj(index -> getBranchNames().get(index))

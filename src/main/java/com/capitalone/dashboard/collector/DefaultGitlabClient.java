@@ -157,21 +157,21 @@ public class DefaultGitlabClient implements GitlabClient {
         gitlabProject.getOptions().put("projectId", projectId);
 
         final String apiKey = settings.getProjectKey(projectId);
-        final String repoName = settings.getRepoName(projectId);
-        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey, repoName);
+        final String branchName = settings.getBranchName(projectId);
+        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey, branchName);
 
         jobDataMap.put(jobData.BUILD, pipelines);
 
         result.put(gitlabProject, jobDataMap);
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey, String repoName) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey, String branchName) throws URISyntaxException, ParseException {
 
         String allPipelinesUrl = String.format("%s/%s", projectApiUrl, "pipelines");
         LOG.info("Fetching pipelines for project {}, page {}", projectApiUrl, pageNum);
         MultiValueMap<String, String> extraQueryParams = new LinkedMultiValueMap<>();
         if (settings.isConsiderOnlyMasterBuilds()) {
-            extraQueryParams.put("ref", Arrays.asList(repoName));
+            extraQueryParams.put("ref", Arrays.asList(branchName));
         }
         ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
         String returnJSON = responseEntity.getBody();
@@ -202,11 +202,11 @@ public class DefaultGitlabClient implements GitlabClient {
 
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey, String repoName) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey, String branchName) throws URISyntaxException, ParseException {
         Set<BaseModel> allPipelines = new LinkedHashSet<>();
         int nextPage = 1;
         while (true) {
-            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey, repoName);
+            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey, branchName);
             if (pipelines.isEmpty()) {
                 break;
             }
