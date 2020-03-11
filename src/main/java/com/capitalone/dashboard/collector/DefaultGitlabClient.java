@@ -27,6 +27,9 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URISyntaxException;
+import java.time.*;
+import java.time.format.*;
+import java.time.temporal.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -157,21 +160,22 @@ public class DefaultGitlabClient implements GitlabClient {
         gitlabProject.getOptions().put("projectId", projectId);
 
         final String apiKey = settings.getProjectKey(projectId);
-        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey);
+        final String branchName = settings.getBranchName(projectId);
+        Set<BaseModel> pipelines = getPipelineDetailsForGitlabProject(url, apiKey, branchName);
 
         jobDataMap.put(jobData.BUILD, pipelines);
 
         result.put(gitlabProject, jobDataMap);
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProjectPaginated(String projectApiUrl, int pageNum, String apiKey, String branchName) throws URISyntaxException, ParseException {
 
         String allPipelinesUrl = String.format("%s/%s", projectApiUrl, "pipelines");
         LOG.info("Fetching pipelines for project {}, page {}", projectApiUrl, pageNum);
         MultiValueMap<String, String> extraQueryParams = new LinkedMultiValueMap<>();
-        if (settings.isConsiderOnlyMasterBuilds()) {
-            extraQueryParams.put("ref", Arrays.asList("master"));
-        }
+
+        extraQueryParams.put("ref", Collections.singletonList(branchName));
+
         ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
         String returnJSON = responseEntity.getBody();
         if (StringUtils.isEmpty(returnJSON)) {
@@ -201,11 +205,11 @@ public class DefaultGitlabClient implements GitlabClient {
 
     }
 
-    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey) throws URISyntaxException, ParseException {
+    private Set<BaseModel> getPipelineDetailsForGitlabProject(String projectApiUrl, String apiKey, String branchName) throws URISyntaxException, ParseException {
         Set<BaseModel> allPipelines = new LinkedHashSet<>();
         int nextPage = 1;
         while (true) {
-            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey);
+            Set<BaseModel> pipelines = getPipelineDetailsForGitlabProjectPaginated(projectApiUrl, nextPage, apiKey, branchName);
             if (pipelines.isEmpty()) {
                 break;
             }
@@ -257,7 +261,11 @@ public class DefaultGitlabClient implements GitlabClient {
                     }
                     build.setSourceChangeSet(Collections.unmodifiableList(commits));
                     processPipelineCommits(Collections.unmodifiableList(commits), jobsForPipeline.getEarliestStartTime(settings.getBuildStages()), collectorId, gitProjectId);
-                    build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
+
+                    if(buildJson.containsKey("user") && buildJson.get("user") !=null){
+                        build.setStartedBy(getString(((JSONObject) buildJson.get("user")), "name"));
+                    }
+
                     build.getCodeRepos().add(
                             new RepoBranch("todo-url", getString(buildJson, "ref"), RepoBranch.RepoType.GIT));
                     return build;

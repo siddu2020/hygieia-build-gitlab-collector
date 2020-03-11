@@ -67,7 +67,8 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 # set username/apiKey to use HTTP Basic Auth (blank=no auth)
 # A comma seperated list of api token corresponding to the project id mentioned above
 gitlab.apiKeys=${GITLAB_API_TOKENS}
-gitlab.buildStages=${GITLAB_BUILD_STAGES:-build,test,analysis,docker,rtp_coupon_cache_refresh}
+gitlab.buildStages=${GITLAB_BUILD_STAGES:-build,test,analysis,docker,rtp_coupon_cache_refresh,Build .jar and test,Build Docker image}
+gitlab.branchNames=${GITLAB_BRANCH_NAMES}
 
 
 # Determines if build console log is collected - defaults to false
@@ -80,8 +81,7 @@ gitlab.searchFields[1]= niceName
 # Timeout values
 gitlab.connectTimeout=20000
 gitlab.readTimeout=20000
-#Should consider only builds from master
-considerOnlyMasterBuilds=${GITLAB_BUILD_CONSIDER_ONLY_MASTER:-true}
+
 EOF
 
 echo "

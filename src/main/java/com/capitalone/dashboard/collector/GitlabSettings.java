@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -27,6 +26,7 @@ public class GitlabSettings {
     private List<String> environments = new ArrayList<>();
     private List<String> usernames = new ArrayList<>();
     private String apiKeys;
+    private String branchNames;
     private String dockerLocalHostIP; //null if not running in docker on http://localhost
     private int pageSize;
     @Value("${folderDepth:10}")
@@ -37,8 +37,6 @@ public class GitlabSettings {
 
     @Value("${gitlab.readTimeout:20000}")
     private int readTimeout;
-
-    private boolean considerOnlyMasterBuilds = true;
 
     public String getCron() {
         return cron;
@@ -112,14 +110,6 @@ public class GitlabSettings {
         this.cron = cron;
     }
 
-    public boolean isConsiderOnlyMasterBuilds() {
-        return considerOnlyMasterBuilds;
-    }
-
-    public void setConsiderOnlyMasterBuilds(boolean considerOnlyMasterBuilds) {
-        this.considerOnlyMasterBuilds = considerOnlyMasterBuilds;
-    }
-
     public String getProjectKey(String projectId) {
         return IntStream.range(0, getProjectIds().size())
                 .filter(index -> projectId.equals(getProjectIds().get(index)))
@@ -128,7 +118,23 @@ public class GitlabSettings {
                 .orElse("");
     }
 
+    public String getBranchName(String projectId) {
+        return IntStream.range(0, getProjectIds().size())
+                .filter(index -> projectId.equals(getProjectIds().get(index)))
+                .mapToObj(index -> getBranchNames().get(index))
+                .findFirst()
+                .orElse("");
+    }
+
     List<String> getBuildStages() {
         return Arrays.asList(buildStages.toLowerCase().split(","));
+    }
+
+    public List<String> getBranchNames() {
+        return Arrays.asList(branchNames.split(","));
+    }
+
+    public void setBranchNames(String branchNames) {
+        this.branchNames = branchNames;
     }
 }
