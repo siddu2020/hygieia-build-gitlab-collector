@@ -131,7 +131,12 @@ public class GitlabSettings {
     public String getBranchName(String projectId) {
         return IntStream.range(0, getProjectIds().size())
                 .filter(index -> projectId.equals(getProjectIds().get(index)))
-                .mapToObj(index -> getBranchNames().get(index))
+                .mapToObj(index -> {
+                    if(getBranchNames().size() > index)
+                        return getBranchNames().get(index);
+                    else
+                        return getBranchNames().get(0);
+                })
                 .findFirst()
                 .orElse("");
     }
