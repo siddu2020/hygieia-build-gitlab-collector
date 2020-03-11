@@ -38,8 +38,6 @@ public class GitlabSettings {
     @Value("${gitlab.readTimeout:20000}")
     private int readTimeout;
 
-    private boolean considerOnlyMasterBuilds = true;
-
     public String getCron() {
         return cron;
     }
@@ -112,14 +110,6 @@ public class GitlabSettings {
         this.cron = cron;
     }
 
-    public boolean isConsiderOnlyMasterBuilds() {
-        return considerOnlyMasterBuilds;
-    }
-
-    public void setConsiderOnlyMasterBuilds(boolean considerOnlyMasterBuilds) {
-        this.considerOnlyMasterBuilds = considerOnlyMasterBuilds;
-    }
-
     public String getProjectKey(String projectId) {
         return IntStream.range(0, getProjectIds().size())
                 .filter(index -> projectId.equals(getProjectIds().get(index)))
@@ -131,12 +121,7 @@ public class GitlabSettings {
     public String getBranchName(String projectId) {
         return IntStream.range(0, getProjectIds().size())
                 .filter(index -> projectId.equals(getProjectIds().get(index)))
-                .mapToObj(index -> {
-                    if(getBranchNames().size() > index)
-                        return getBranchNames().get(index);
-                    else
-                        return getBranchNames().get(0);
-                })
+                .mapToObj(index -> getBranchNames().get(index))
                 .findFirst()
                 .orElse("");
     }

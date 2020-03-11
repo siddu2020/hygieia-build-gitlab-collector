@@ -27,6 +27,9 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URISyntaxException;
+import java.time.*;
+import java.time.format.*;
+import java.time.temporal.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -170,9 +173,9 @@ public class DefaultGitlabClient implements GitlabClient {
         String allPipelinesUrl = String.format("%s/%s", projectApiUrl, "pipelines");
         LOG.info("Fetching pipelines for project {}, page {}", projectApiUrl, pageNum);
         MultiValueMap<String, String> extraQueryParams = new LinkedMultiValueMap<>();
-        if (settings.isConsiderOnlyMasterBuilds()) {
-            extraQueryParams.put("ref", Arrays.asList(branchName));
-        }
+
+        extraQueryParams.put("ref", Collections.singletonList(branchName));
+
         ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
         String returnJSON = responseEntity.getBody();
         if (StringUtils.isEmpty(returnJSON)) {
