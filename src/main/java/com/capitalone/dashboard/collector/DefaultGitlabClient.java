@@ -128,6 +128,10 @@ public class DefaultGitlabClient implements GitlabClient {
         int parentSize = CollectionUtils.isNotEmpty(gitlabCommit.getParentIds()) ? gitlabCommit.getParentIds().size() : 0;
         CommitType commitType = parentSize > 1 ? CommitType.Merge : CommitType.New;
 
+        if(gitlabCommit.getLastPipeline() == null) {
+            return null;
+        }
+
         String web_url = gitlabCommit.getLastPipeline().getWeb_url();
         String repo_url = web_url.split("/pipelines")[0];
         Commit commit = new Commit();
