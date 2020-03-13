@@ -106,6 +106,7 @@ class PipelineJob {
         this.duration = duration;
         this.commitId = commitId;
         this.parentCommitIds = parentCommitIds;
+        this.status = status;
     }
 
     String getStage() {
