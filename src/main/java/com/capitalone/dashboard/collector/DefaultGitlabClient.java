@@ -27,9 +27,6 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URISyntaxException;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -296,7 +293,7 @@ public class DefaultGitlabClient implements GitlabClient {
         build.setStartTime(jobsForPipeline.getEarliestStartTime(settings.getBuildStages()));
         build.setDuration(jobsForPipeline.getRelevantJobTime(settings.getBuildStages()));
         build.setEndTime(jobsForPipeline.getLastEndTime(settings.getBuildStages()));
-        build.setBuildStatus(getBuildStatus(buildJson));
+        build.setBuildStatus(jobsForPipeline.getBuildStatus(settings.getBuildStages()));
         return build;
     }
 
