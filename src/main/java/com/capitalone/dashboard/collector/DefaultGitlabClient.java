@@ -125,6 +125,10 @@ public class DefaultGitlabClient implements GitlabClient {
         int parentSize = CollectionUtils.isNotEmpty(gitlabCommit.getParentIds()) ? gitlabCommit.getParentIds().size() : 0;
         CommitType commitType = parentSize > 1 ? CommitType.Merge : CommitType.New;
 
+        if(gitlabCommit.getLastPipeline() == null) {
+            return null;
+        }
+
         String web_url = gitlabCommit.getLastPipeline().getWeb_url();
         String repo_url = web_url.split("/pipelines")[0];
         Commit commit = new Commit();
@@ -172,6 +176,7 @@ public class DefaultGitlabClient implements GitlabClient {
         MultiValueMap<String, String> extraQueryParams = new LinkedMultiValueMap<>();
 
         extraQueryParams.put("ref", Collections.singletonList(branchName));
+        extraQueryParams.put("updated_after", Collections.singletonList(getBuildThresholdTime()));
 
         ResponseEntity<String> responseEntity = makeRestCall(allPipelinesUrl, pageNum, 100, extraQueryParams, apiKey);
         String returnJSON = responseEntity.getBody();
@@ -277,6 +282,12 @@ public class DefaultGitlabClient implements GitlabClient {
             LOG.error("Unknown error in getting build details. URL=" + buildUrl, re);
         }
         return null;
+    }
+
+    private String getBuildThresholdTime() {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mmX")
+                .withZone(ZoneOffset.UTC).format
+                        (Instant.now().minus(settings.getFirstRunHistoryDays(), ChronoUnit.DAYS));
     }
 
     private Boolean isBuildCompleted(JSONObject buildJson) {

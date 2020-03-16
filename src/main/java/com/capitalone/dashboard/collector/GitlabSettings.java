@@ -31,6 +31,7 @@ public class GitlabSettings {
     private int pageSize;
     @Value("${folderDepth:10}")
     private int folderDepth;
+    private int firstRunHistoryDays;
 
     @Value("${gitlab.connectTimeout:20000}")
     private int connectTimeout;
@@ -136,5 +137,13 @@ public class GitlabSettings {
 
     public void setBranchNames(String branchNames) {
         this.branchNames = branchNames;
+    }
+
+    public int getFirstRunHistoryDays() {
+        return firstRunHistoryDays;
+    }
+
+    public void setFirstRunHistoryDays(int firstRunHistoryDays) {
+        this.firstRunHistoryDays = firstRunHistoryDays;
     }
 }
