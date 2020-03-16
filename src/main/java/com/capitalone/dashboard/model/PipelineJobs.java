@@ -5,7 +5,10 @@ import org.json.simple.JSONObject;
 
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -15,6 +18,7 @@ public class PipelineJobs {
 
     public void addJob(JSONObject jsonObject) {
         String stage = (String) jsonObject.get("stage");
+        String status = (String) jsonObject.get("status");
         Double durationInDouble = (Double) jsonObject.get("duration");
         Long duration = Math.round(durationInDouble != null ? durationInDouble : 0.0);
         long startedAt = getTime(jsonObject, "started_at");
@@ -24,9 +28,9 @@ public class PipelineJobs {
         List<String> parentCommitIds = new ArrayList<>();
         Iterator iterator = ((JSONArray) commit.get("parent_ids")).iterator();
         while (iterator.hasNext()) {
-            parentCommitIds.add((String)iterator.next());
+            parentCommitIds.add((String) iterator.next());
         }
-        jobList.add(new PipelineJob(stage, startedAt, finishedAt, duration, commitId, parentCommitIds));
+        jobList.add(new PipelineJob(stage, startedAt, finishedAt, duration, commitId, parentCommitIds, status));
     }
 
     public long getRelevantJobTime(List<String> buildStages) {
@@ -48,6 +52,19 @@ public class PipelineJobs {
                 .contains(job.getStage().toLowerCase()))
                 .map(PipelineJob::getFinishedAt)
                 .mapToLong(Long::longValue).max().orElse(0);
+    }
+
+    public BuildStatus getBuildStatus(List<String> buildStages) {
+        boolean success = this.jobList.stream().filter(job -> buildStages
+                .contains(job.getStage().toLowerCase()))
+                .map(PipelineJob::getStatus)
+                .allMatch(this::isSuccess);
+        return success ? BuildStatus.Success : BuildStatus.Failure;
+    }
+
+    private boolean isSuccess(String status) {
+        return status.equalsIgnoreCase("success")
+                || status.equalsIgnoreCase("manual");
     }
 
     public Iterable<String> getCommitIds() {
@@ -80,14 +97,16 @@ class PipelineJob {
     private Long duration;
     private String commitId;
     private List<String> parentCommitIds;
+    private String status;
 
-    PipelineJob(String stage, Long startedAt, Long finishedAt, Long duration, String commitId, List<String> parentCommitIds) {
+    PipelineJob(String stage, Long startedAt, Long finishedAt, Long duration, String commitId, List<String> parentCommitIds, String status) {
         this.stage = stage;
         this.startedAt = startedAt;
         this.finishedAt = finishedAt;
         this.duration = duration;
         this.commitId = commitId;
         this.parentCommitIds = parentCommitIds;
+        this.status = status;
     }
 
     String getStage() {
@@ -112,5 +131,9 @@ class PipelineJob {
 
     public List<String> getParentCommitIds() {
         return parentCommitIds;
+    }
+
+    public String getStatus() {
+        return status;
     }
 }
