@@ -335,6 +335,7 @@ public class DefaultGitlabClient implements GitlabClient {
         List<String> dashBoardIds = allDashboardsForCommit.stream().map(d -> d.getId().toString()).collect(Collectors.toList());
 
         String environmentName = PipelineStage.BUILD.getName();
+        String commitStageName = PipelineStage.COMMIT.getName();
         List<Collector> collectorList = collectorRepository.findByCollectorType(CollectorType.Product);
         List<CollectorItem> collectorItemList = collectorItemRepository.findByCollectorIdIn(collectorList.stream().map(BaseModel::getId).collect(Collectors.toList()));
 
@@ -352,12 +353,24 @@ public class DefaultGitlabClient implements GitlabClient {
                 if (environmentStage.getCommits() == null) {
                     environmentStage.setCommits(new HashSet<>());
                 }
+
+                HashSet<PipelineCommit> pipelineCommits = new HashSet<>();
+                EnvironmentStage commitStage = environmentStageMap.get(commitStageName);
+
+                if(commitStage != null && commits.size() > 0) {
+                    for (Commit commit : commits) {
+                        List<PipelineCommit> cs = commitStage.getCommits().stream()
+                                .filter(c -> c.getScmParentRevisionNumbers().size() > 1 && c.getTimestamp() < commit.getTimestamp()).collect(Collectors.toList());
+                        pipelineCommits.addAll(cs);
+                    }
+                }
                 environmentStage.getCommits().addAll(commits.stream()
                         .map(commit -> {
                             //commit.setTimestamp(timestamp); <--- Not sure if we should do this.
                             // IMO, the SCM timestamp should be unaltered.
                             return new PipelineCommit(commit, timestamp);
                         }).collect(Collectors.toSet()));
+                environmentStage.getCommits().addAll(pipelineCommits);
                 pipelineRepository.save(pipeline);
             }
         }
