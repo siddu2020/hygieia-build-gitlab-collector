@@ -67,10 +67,8 @@ public class PipelineJobs {
                 || status.equalsIgnoreCase("manual");
     }
 
-    public Iterable<String> getCommitIds() {
-        return Stream.concat(jobList.stream().map(PipelineJob::getCommitId),
-                jobList.stream().flatMap(j -> j.getParentCommitIds().stream()))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+    public List<String> getCommitIds() {
+        return jobList.stream().map(PipelineJob::getCommitId).collect(Collectors.toList());
     }
 
     private long getTime(JSONObject buildJson, String jsonField) {
