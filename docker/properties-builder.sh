@@ -68,7 +68,7 @@ gitlab.projectIds=${GITLAB_PROJECT_IDS}
 # A comma seperated list of api token corresponding to the project id mentioned above
 gitlab.apiKeys=${GITLAB_API_TOKENS}
 gitlab.buildStages=${GITLAB_BUILD_STAGES:-build,test,analysis,docker,Build .jar and test,Build Docker image}
-gitlab.ignoredBuildStages =${GITLAB_IGNORED_BUILD_STAGES:-rtp_coupon_cache_refresh}
+gitlab.ignoredBuildStages =${GITLAB_IGNORED_BUILD_STAGES}
 gitlab.branchNames=${GITLAB_BRANCH_NAMES:-master}
 gitlab.firstRunHistoryDays=${GITLAB_COMMIT_THRESHOLD_DAYS:-30}
 

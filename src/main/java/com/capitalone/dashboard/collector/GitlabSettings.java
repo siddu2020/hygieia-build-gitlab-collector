@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -138,7 +139,8 @@ public class GitlabSettings {
     }
 
     List<String> getIgnoredBuildStages() {
-        return Arrays.asList(ignoredBuildStages.toLowerCase().split(","));
+        return ignoredBuildStages.isEmpty() ?
+                Collections.emptyList() : Arrays.asList(ignoredBuildStages.toLowerCase().split(","));
     }
 
     public List<String> getBranchNames() {
