@@ -32,6 +32,13 @@ public class PipelineJobs {
         }
         jobList.add(new PipelineJob(stage, startedAt, finishedAt, duration, commitId, parentCommitIds, status));
     }
+    public boolean containsIgnoredStages(List<String> ignorBuildStages){
+        List<PipelineJob> t = this.jobList
+                            .stream()
+                            .filter(job -> ignorBuildStages.contains(job.getStage().toLowerCase()))
+                            .collect(Collectors.toList());
+        return t.size() >= 1;
+    }
 
     public long getRelevantJobTime(List<String> buildStages) {
         return this.jobList.stream().filter(job -> buildStages

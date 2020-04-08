@@ -241,7 +241,8 @@ public class DefaultGitlabClient implements GitlabClient {
             try {
                 JSONObject buildJson = (JSONObject) parser.parse(resultJSON);
 
-                if (isBuildCompleted(buildJson) && jobsForPipeline != null) {
+                if (isBuildCompleted(buildJson) && jobsForPipeline != null
+                        && !jobsForPipeline.containsIgnoredStages(settings.getIgnoredBuildStages())) {
                     Build build = getBuild(buildUrl, jobsForPipeline, buildJson);
                     Iterable<String> commitIds = jobsForPipeline.getCommitIds();
                     List<Commit> commits = new ArrayList<>();

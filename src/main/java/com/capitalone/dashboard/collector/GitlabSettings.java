@@ -16,11 +16,12 @@ import java.util.stream.IntStream;
 @ConfigurationProperties(prefix = "gitlab")
 public class GitlabSettings {
 
-	
+
     private String cron;
     private List<String> servers = new ArrayList<>();
     private String projectIds = "";
     private String buildStages;
+    private String ignoredBuildStages;
     private List<String> niceNames;
     //eg. DEV, QA, PROD etc
     private List<String> environments = new ArrayList<>();
@@ -70,11 +71,16 @@ public class GitlabSettings {
     public void setBuildStages(String buildStages) {
         this.buildStages = buildStages;
     }
+
+    public void setIgnoredBuildStages(String ignoredBuildStages) {
+        this.ignoredBuildStages = ignoredBuildStages;
+    }
+
     //Docker NATs the real host localhost to 10.0.2.2 when running in docker
 	//as localhost is stored in the JSON payload from gitlab we need
 	//this hack to fix the addresses
     public String getDockerLocalHostIP() {
-    	
+
     		//we have to do this as spring will return NULL if the value is not set vs and empty string
     	String localHostOverride = "";
     	if (dockerLocalHostIP != null) {
@@ -82,11 +88,11 @@ public class GitlabSettings {
     	}
         return localHostOverride;
     }
-    
+
     public void setPageSize(int pageSize) {
 		this.pageSize = pageSize;
 	}
-    
+
     public int getPageSize() {
 		return pageSize;
 	}
@@ -129,6 +135,10 @@ public class GitlabSettings {
 
     List<String> getBuildStages() {
         return Arrays.asList(buildStages.toLowerCase().split(","));
+    }
+
+    List<String> getIgnoredBuildStages() {
+        return Arrays.asList(ignoredBuildStages.toLowerCase().split(","));
     }
 
     public List<String> getBranchNames() {
